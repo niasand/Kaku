@@ -143,95 +143,101 @@ else
 fi
 
 mkdir -p "$HOME/.config/kaku"
-VERSION_FILE="$HOME/.config/kaku/.kaku_config_version"
-USER_CONFIG_VERSION=0
-if [[ -f "$VERSION_FILE" ]]; then
-	RAW_VERSION="$(cat "$VERSION_FILE" 2>/dev/null || true)"
-	if [[ "$RAW_VERSION" =~ ^[0-9]+$ ]]; then
-		USER_CONFIG_VERSION="$RAW_VERSION"
-	fi
-fi
 
 # Process Kaku Theme
 if [[ "$INSTALL_THEME" == "true" ]]; then
 	KAKU_LUA_SRC="$RESOURCES_DIR/kaku.lua"
 	KAKU_LUA_DEST="$HOME/.config/kaku/kaku.lua"
 
-		if [[ -f "$KAKU_LUA_SRC" ]]; then
-			if [[ -f "$KAKU_LUA_DEST" && "$USER_CONFIG_VERSION" -ne 1 ]]; then
-				echo "Detected existing custom kaku.lua, skipping automatic overwrite."
-				echo "To apply theme manually, review: $KAKU_LUA_SRC"
-			else
-				if [[ -f "$KAKU_LUA_DEST" ]]; then
-					BACKUP_FILE="$KAKU_LUA_DEST.kaku-backup-$(date +%s)"
-					cp "$KAKU_LUA_DEST" "$BACKUP_FILE"
-					echo "Detected v1 config, backup created at: $BACKUP_FILE"
-				fi
-
-				echo "Installing Kaku theme..."
-				cp "$KAKU_LUA_SRC" "$KAKU_LUA_DEST"
-
-				# Inject Kaku theme before the return statement
-				# We use a temporary file to construct the new content
-				TMP_FILE=$(mktemp)
-
-				# Read all lines except the last one (return config)
-				sed '$d' "$KAKU_LUA_DEST" >"$TMP_FILE"
-
-				# Append Kaku theme config
-				cat <<EOF >>"$TMP_FILE"
-
--- ===== Kaku Theme =====
-config.colors = {
-  foreground = '#d4d4d4',
-  background = '#1e1e1e',
-  cursor_bg = '#569cd6',
-  cursor_fg = '#1e1e1e',
-  cursor_border = '#569cd6',
-  selection_bg = '#264f78',
-  selection_fg = '#d4d4d4',
-  ansi = {'#000000', '#cd3131', '#0dbc79', '#e5e510', '#2472c8', '#bc3fbc', '#11a8cd', '#e5e5e5'},
-  brights = {'#666666', '#f14c4c', '#23d18b', '#f5f543', '#3b8eea', '#d670d6', '#29b8db', '#e5e5e5'},
-  tab_bar = {
-    background = '#1e1e1e',
-    active_tab = {
-      bg_color = '#1e1e1e',
-      fg_color = '#569cd6',
-      intensity = 'Bold',
-    },
-    inactive_tab = {
-      bg_color = '#2d2d2d',
-      fg_color = '#858585',
-    },
-    inactive_tab_hover = {
-      bg_color = '#2d2d2d',
-      fg_color = '#d4d4d4',
-    },
-    new_tab = {
-      bg_color = '#1e1e1e',
-      fg_color = '#858585',
-    },
-    new_tab_hover = {
-      bg_color = '#2d2d2d',
-      fg_color = '#d4d4d4',
-    },
-  },
-}
-config.window_frame = {
-  active_titlebar_bg = '#1e1e1e',
-  inactive_titlebar_bg = '#1e1e1e',
-  button_bg = '#1e1e1e',
-  button_fg = '#cccccc',
-}
-
-return config
-EOF
-				mv "$TMP_FILE" "$KAKU_LUA_DEST"
-				echo "Kaku theme applied!"
-			fi
-		else
-			echo "Warning: Could not find kaku.lua source at $KAKU_LUA_SRC"
+	if [[ -f "$KAKU_LUA_SRC" ]]; then
+		if [[ ! -f "$KAKU_LUA_DEST" ]]; then
+			cp "$KAKU_LUA_SRC" "$KAKU_LUA_DEST"
+			echo "Created default kaku.lua from bundled template."
 		fi
+
+		if grep -q "===== Kaku Theme =====" "$KAKU_LUA_DEST" 2>/dev/null || grep -q "===== Kaku Theme Defaults (managed) =====" "$KAKU_LUA_DEST" 2>/dev/null; then
+			echo "Kaku theme block already exists, skipping duplicate injection."
+		else
+			echo "Applying Kaku theme defaults (missing keys only)..."
+			TMP_FILE=$(mktemp)
+			TMP_TAIL_FILE=$(mktemp)
+
+			RETURN_LINE="$(grep -nE '^[[:space:]]*return[[:space:]]+config[[:space:]]*$' "$KAKU_LUA_DEST" | tail -n 1 | cut -d: -f1 || true)"
+			if [[ -n "$RETURN_LINE" ]]; then
+				if [[ "$RETURN_LINE" -gt 1 ]]; then
+					sed -n "1,$((RETURN_LINE - 1))p" "$KAKU_LUA_DEST" >"$TMP_FILE"
+				else
+					: >"$TMP_FILE"
+				fi
+				sed -n "$((RETURN_LINE + 1)),\$p" "$KAKU_LUA_DEST" >"$TMP_TAIL_FILE"
+				APPEND_RETURN=true
+			else
+				cat "$KAKU_LUA_DEST" >"$TMP_FILE"
+				: >"$TMP_TAIL_FILE"
+				APPEND_RETURN=false
+			fi
+
+			cat <<'EOF' >>"$TMP_FILE"
+
+-- ===== Kaku Theme Defaults (managed) =====
+config.colors = config.colors or {}
+config.colors.foreground = config.colors.foreground or '#d4d4d4'
+config.colors.background = config.colors.background or '#1e1e1e'
+config.colors.cursor_bg = config.colors.cursor_bg or '#569cd6'
+config.colors.cursor_fg = config.colors.cursor_fg or '#1e1e1e'
+config.colors.cursor_border = config.colors.cursor_border or '#569cd6'
+config.colors.selection_bg = config.colors.selection_bg or '#264f78'
+config.colors.selection_fg = config.colors.selection_fg or '#d4d4d4'
+
+if not config.colors.ansi then
+  config.colors.ansi = {'#000000', '#cd3131', '#0dbc79', '#e5e510', '#2472c8', '#bc3fbc', '#11a8cd', '#e5e5e5'}
+end
+if not config.colors.brights then
+  config.colors.brights = {'#666666', '#f14c4c', '#23d18b', '#f5f543', '#3b8eea', '#d670d6', '#29b8db', '#e5e5e5'}
+end
+
+config.colors.tab_bar = config.colors.tab_bar or {}
+config.colors.tab_bar.background = config.colors.tab_bar.background or '#1e1e1e'
+config.colors.tab_bar.active_tab = config.colors.tab_bar.active_tab or {}
+config.colors.tab_bar.active_tab.bg_color = config.colors.tab_bar.active_tab.bg_color or '#1e1e1e'
+config.colors.tab_bar.active_tab.fg_color = config.colors.tab_bar.active_tab.fg_color or '#569cd6'
+config.colors.tab_bar.active_tab.intensity = config.colors.tab_bar.active_tab.intensity or 'Bold'
+config.colors.tab_bar.inactive_tab = config.colors.tab_bar.inactive_tab or {}
+config.colors.tab_bar.inactive_tab.bg_color = config.colors.tab_bar.inactive_tab.bg_color or '#2d2d2d'
+config.colors.tab_bar.inactive_tab.fg_color = config.colors.tab_bar.inactive_tab.fg_color or '#858585'
+config.colors.tab_bar.inactive_tab_hover = config.colors.tab_bar.inactive_tab_hover or {}
+config.colors.tab_bar.inactive_tab_hover.bg_color = config.colors.tab_bar.inactive_tab_hover.bg_color or '#2d2d2d'
+config.colors.tab_bar.inactive_tab_hover.fg_color = config.colors.tab_bar.inactive_tab_hover.fg_color or '#d4d4d4'
+config.colors.tab_bar.new_tab = config.colors.tab_bar.new_tab or {}
+config.colors.tab_bar.new_tab.bg_color = config.colors.tab_bar.new_tab.bg_color or '#1e1e1e'
+config.colors.tab_bar.new_tab.fg_color = config.colors.tab_bar.new_tab.fg_color or '#858585'
+config.colors.tab_bar.new_tab_hover = config.colors.tab_bar.new_tab_hover or {}
+config.colors.tab_bar.new_tab_hover.bg_color = config.colors.tab_bar.new_tab_hover.bg_color or '#2d2d2d'
+config.colors.tab_bar.new_tab_hover.fg_color = config.colors.tab_bar.new_tab_hover.fg_color or '#d4d4d4'
+
+config.window_frame = config.window_frame or {}
+config.window_frame.active_titlebar_bg = config.window_frame.active_titlebar_bg or '#1e1e1e'
+config.window_frame.inactive_titlebar_bg = config.window_frame.inactive_titlebar_bg or '#1e1e1e'
+config.window_frame.button_bg = config.window_frame.button_bg or '#1e1e1e'
+config.window_frame.button_fg = config.window_frame.button_fg or '#cccccc'
+EOF
+
+			if [[ "$APPEND_RETURN" == "true" ]]; then
+				echo "" >>"$TMP_FILE"
+				echo "return config" >>"$TMP_FILE"
+				if [[ -s "$TMP_TAIL_FILE" ]]; then
+					echo "" >>"$TMP_FILE"
+					cat "$TMP_TAIL_FILE" >>"$TMP_FILE"
+				fi
+			fi
+
+			mv "$TMP_FILE" "$KAKU_LUA_DEST"
+			rm -f "$TMP_TAIL_FILE"
+			echo "Kaku theme defaults applied."
+		fi
+	else
+		echo "Warning: Could not find kaku.lua source at $KAKU_LUA_SRC"
+	fi
 fi
 
 # Process Delta Installation
