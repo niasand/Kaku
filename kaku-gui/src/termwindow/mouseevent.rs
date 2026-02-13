@@ -245,19 +245,12 @@ impl super::TermWindow {
                         Some(MouseCapture::TerminalPane(_))
                     )
                 {
-                    // While a non-terminal drag is active (for example native
-                    // window dragging in title/tab areas), ignore wheel input
-                    // so we don't scroll terminal content under the pointer.
                     return;
                 }
                 if matches!(
                     self.resolve_ui_item(&event).map(|item| item.item_type),
                     Some(UIItemType::TabBar(_))
                 ) {
-                    // Title/tab area wheel gestures should not affect terminal scroll.
-                    return;
-                }
-                if event.coords.y < terminal_origin_y {
                     return;
                 }
             }
@@ -334,8 +327,7 @@ impl super::TermWindow {
         } else if matches!(
             self.current_mouse_capture,
             None | Some(MouseCapture::TerminalPane(_))
-        ) && event.coords.y >= terminal_origin_y
-        {
+        ) {
             self.mouse_event_terminal(
                 pane,
                 ClickPosition {

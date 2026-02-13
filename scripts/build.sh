@@ -82,6 +82,7 @@ for arg in "$@"; do
 	case "$arg" in
 	--open) OPEN_APP=1 ;;
 	--app-only) APP_ONLY=1 ;;
+	--native-arch) BUILD_ARCH="native" ;;
 	esac
 done
 

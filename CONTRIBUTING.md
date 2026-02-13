@@ -44,9 +44,18 @@ RUST_LOG=debug make dev
 ## Build Release
 
 ```bash
-# Build application and DMG (release, native)
+# Build application and DMG (release, universal binary)
 ./scripts/build.sh
 # Outputs: dist/Kaku.app and dist/Kaku.dmg
+
+# Build for current architecture only (faster, for local testing)
+./scripts/build.sh --native-arch
+
+# Build app bundle only (skip DMG creation)
+./scripts/build.sh --native-arch --app-only
+
+# Build and open the app automatically
+./scripts/build.sh --native-arch --open
 ```
 
 ## Pull Requests
