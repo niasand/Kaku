@@ -77,6 +77,12 @@ WezTerm is robust and highly hackable, and I am grateful for its engine and ecos
 
 So I built Kaku to be that environment: fast, polished, and ready to work.
 
+Big thanks to all contributors who helped build Kaku. Go follow them! ❤️
+
+<a href="https://github.com/tw93/Kaku/graphs/contributors">
+  <img src="./CONTRIBUTORS.svg?v=2" width="1000" />
+</a>
+
 ### Performance
 
 | Metric | Upstream | Kaku | Methodology |
@@ -106,7 +112,9 @@ Achieved through aggressive stripping of unused features, lazy loading of color 
 
 - If Kaku helped you, star the repo or [share it](https://twitter.com/intent/tweet?url=https://github.com/tw93/Kaku&text=Kaku%20-%20A%20fast%20terminal%20built%20for%20AI%20coding.) with friends.
 - Got ideas or found bugs? Open an issue/PR or check [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-- Like Kaku? <a href="https://miaoyan.app/cats.html?name=Kaku" target="_blank">Buy Tw93 a Coke</a> to support the project!
+- Like Kaku? <a href="https://miaoyan.app/cats.html?name=Kaku" target="_blank">Buy Tw93 a Coke</a> to support the project! 🥤 Supporters below.
+
+<a href="https://miaoyan.app/cats.html?name=Kaku"><img src="https://miaoyan.app/assets/sponsors.svg" width="1000" loading="lazy" /></a>
 
 ## License
 
