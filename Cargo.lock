@@ -3073,6 +3073,7 @@ dependencies = [
  "config",
  "crossbeam",
  "downcast-rs",
+ "encoding_rs",
  "fancy-regex",
  "filedescriptor",
  "finl_unicode",
