@@ -49,6 +49,7 @@ pub fn confirm_close_tab(
     Ok(())
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn confirm_close_window(
     mut term: TermWizTerminal,
     mux_window_id: WindowId,
