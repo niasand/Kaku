@@ -239,10 +239,10 @@ _kaku_deactivate_region() {
     if ! _kaku_has_active_region; then
         return 1
     fi
-    if (( ${+widgets[deactivate-region]} )); then
+    if (( \${+widgets[deactivate-region]} )); then
         zle deactivate-region
     else
-        MARK=$CURSOR
+        MARK=\$CURSOR
         REGION_ACTIVE=0
         zle redisplay
     fi
@@ -360,6 +360,43 @@ if [[ -f "\$KAKU_ZSH_DIR/plugins/zsh-z/zsh-z.plugin.zsh" ]]; then
     : "\${ZSHZ_CASE:=smart}"
     export ZSHZ_CASE
     source "\$KAKU_ZSH_DIR/plugins/zsh-z/zsh-z.plugin.zsh"
+
+    # z supports fuzzy directory jumps, but users also expect cd + Tab to
+    # reuse visited paths in a layered way. Keep default _cd behavior and
+    # only fall back to zsh-z history when filesystem completion has no match.
+    # Delegate ranking/matching to zshz --complete so behavior stays aligned
+    # with the plugin (frecency ordering, smart-case, future plugin changes).
+    _kaku_cd_history_complete() {
+        emulate -L zsh
+        setopt extended_glob no_sh_word_split
+
+        _cd
+        local ret=\$?
+        local nmatches="\${compstate[nmatches]:-0}"
+        if (( nmatches > 0 )); then
+            return \$ret
+        fi
+
+        local token="\${PREFIX:-}"
+        [[ -n "\$token" ]] || return \$ret
+        [[ "\$token" != -* ]] || return \$ret
+        [[ "\$token" == */* ]] || return \$ret
+
+        (( \${+functions[zshz]} )) || return \$ret
+
+        local -a matches
+        local match
+        while IFS= read -r match; do
+            [[ -n "\$match" ]] || continue
+            matches+=("\$match")
+        done < <(zshz --complete -- "\$token" 2>/dev/null)
+
+        (( \${#matches[@]} )) || return \$ret
+
+        compadd -Q -U -X "zsh-z history dirs" -- "\${matches[@]}"
+        return 0
+    }
+    compdef _kaku_cd_history_complete cd
 fi
 
 # Load zsh-autosuggestions - Async, minimal impact
