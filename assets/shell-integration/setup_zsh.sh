@@ -178,39 +178,11 @@ cp -R "$VENDOR_DIR/zsh-completions" "$USER_CONFIG_DIR/plugins/"
 echo -e "  ${GREEN}✓${NC} ${BOLD}Tools${NC}       Installed Zsh plugins ${NC}(~/.config/kaku/zsh/plugins)${NC}"
 
 # Copy Starship Config (if not exists)
-STARSHIP_CONFIG_CREATED=false
 if [[ ! -f "$STARSHIP_CONFIG" ]]; then
 	if [[ -f "$VENDOR_DIR/starship.toml" ]]; then
 		mkdir -p "$(dirname "$STARSHIP_CONFIG")"
 		cp "$VENDOR_DIR/starship.toml" "$STARSHIP_CONFIG"
-		STARSHIP_CONFIG_CREATED=true
 		echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Initialized starship.toml ${NC}(~/.config/starship.toml)${NC}"
-	fi
-fi
-
-# Keep default prompt clean for local development.
-# User-owned starship.toml should not be modified after creation.
-if [[ "$STARSHIP_CONFIG_CREATED" == "true" ]] && [[ -f "$STARSHIP_CONFIG" ]]; then
-	starship_cloud_patched=false
-
-	ensure_starship_cloud_module_disabled() {
-		local module="$1"
-		if ! grep -Eq "^[[:space:]]*\\[$module\\]" "$STARSHIP_CONFIG"; then
-			cat <<EOF >>"$STARSHIP_CONFIG"
-
-[$module]
-disabled = true
-EOF
-			starship_cloud_patched=true
-		fi
-	}
-
-	for module in aws gcloud azure kubernetes openstack docker_context terraform; do
-		ensure_starship_cloud_module_disabled "$module"
-	done
-
-	if [[ "$starship_cloud_patched" == "true" ]]; then
-		echo -e "  ${GREEN}✓${NC} ${BOLD}Prompt${NC}      Initialized cloud context defaults in starship.toml"
 	fi
 fi
 
