@@ -739,34 +739,41 @@ yy() {
 
 # Load Plugins (Performance Optimized)
 
-# Load zsh-completions into fpath before compinit
-if [[ -d "\$KAKU_ZSH_DIR/plugins/zsh-completions/src" ]]; then
+# Load zsh-completions into fpath before compinit.
+# If the user already added this path, do not duplicate it.
+if [[ -d "\$KAKU_ZSH_DIR/plugins/zsh-completions/src" ]] && (( \${fpath[(Ie)\$KAKU_ZSH_DIR/plugins/zsh-completions/src]} == 0 )); then
     fpath=("\$KAKU_ZSH_DIR/plugins/zsh-completions/src" \$fpath)
 fi
 
-# Optimized compinit: Use cache and only rebuild when needed (~30ms saved)
+# Optimized compinit:
+# - If completion system is already initialized by user config/plugin manager, skip.
+# - Otherwise use cache and only rebuild when needed.
 autoload -Uz compinit
-if [[ -n "\${ZDOTDIR:-\$HOME}/.zcompdump"(#qN.mh+24) ]]; then
-    # Rebuild completion cache if older than 24 hours
-    compinit
-else
-    # Load from cache (much faster)
-    compinit -C
+if ! (( \${+functions[_main_complete]} )) || ! (( \${+_comps} )); then
+    if [[ -n "\${ZDOTDIR:-\$HOME}/.zcompdump"(#qN.mh+24) ]]; then
+        # Rebuild completion cache if older than 24 hours
+        compinit
+    else
+        # Load from cache (much faster)
+        compinit -C
+    fi
 fi
 
-# Load zsh-z (smart directory jumping) - Fast, no delay needed
-if [[ -f "\$KAKU_ZSH_DIR/plugins/zsh-z/zsh-z.plugin.zsh" ]]; then
+# Load zsh-z only if it is not already available from user config.
+if ! (( \${+functions[zshz]} )) && [[ -f "\$KAKU_ZSH_DIR/plugins/zsh-z/zsh-z.plugin.zsh" ]]; then
     # Default to smart case matching so z kaku prefers Kaku over lowercase
     # path entries. Users can still override this in their own shell config.
     : "\${ZSHZ_CASE:=smart}"
     export ZSHZ_CASE
     source "\$KAKU_ZSH_DIR/plugins/zsh-z/zsh-z.plugin.zsh"
+fi
 
-    # z supports fuzzy directory jumps, but users also expect cd + Tab to
-    # reuse visited paths in a layered way. Keep default _cd behavior and
-    # only fall back to zsh-z history when filesystem completion has no match.
-    # Delegate ranking/matching to zshz --complete so behavior stays aligned
-    # with the plugin (frecency ordering, smart-case, future plugin changes).
+# z supports fuzzy directory jumps, but users also expect cd + Tab to
+# reuse visited paths in a layered way. Keep default _cd behavior and
+# only fall back to zsh-z history when filesystem completion has no match.
+# Delegate ranking/matching to zshz --complete so behavior stays aligned
+# with the plugin (frecency ordering, smart-case, future plugin changes).
+if (( \${+functions[zshz]} )); then
     _kaku_cd_history_complete() {
         emulate -L zsh
         setopt extended_glob no_sh_word_split
@@ -797,11 +804,14 @@ if [[ -f "\$KAKU_ZSH_DIR/plugins/zsh-z/zsh-z.plugin.zsh" ]]; then
         compadd -Q -U -X "zsh-z history dirs" -- "\${matches[@]}"
         return 0
     }
-    compdef _kaku_cd_history_complete cd
+
+    if (( \${+functions[compdef]} )); then
+        compdef _kaku_cd_history_complete cd
+    fi
 fi
 
-# Load zsh-autosuggestions - Async, minimal impact
-if [[ -f "\$KAKU_ZSH_DIR/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
+# Load zsh-autosuggestions only if user config has not loaded it yet.
+if ! (( \${+functions[_zsh_autosuggest_start]} )) && [[ -f "\$KAKU_ZSH_DIR/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
     source "\$KAKU_ZSH_DIR/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh"
 fi
 
@@ -837,8 +847,9 @@ zle -N _kaku_tab_widget
 bindkey '^I' _kaku_tab_widget
 
 # Defer zsh-syntax-highlighting to first prompt (~40ms saved at startup)
-# This plugin must be loaded LAST, and we delay it for faster shell startup
-if [[ -f "\$KAKU_ZSH_DIR/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
+# This plugin must be loaded LAST, and we delay it for faster shell startup.
+# If user config already loaded it, skip to avoid overriding user settings.
+if ! (( \${+functions[_zsh_highlight]} )) && [[ -f "\$KAKU_ZSH_DIR/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
     # Simplified highlighters for better performance (removed brackets, pattern, cursor)
     export ZSH_HIGHLIGHT_HIGHLIGHTERS=(main)
 
