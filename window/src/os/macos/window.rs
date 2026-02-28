@@ -1150,6 +1150,13 @@ impl WindowOps for Window {
         });
     }
 
+    fn order_out(&self) {
+        Connection::with_window_inner(self.id, |inner| {
+            inner.order_out();
+            Ok(())
+        });
+    }
+
     fn show(&self) {
         // Try synchronous show first when called from the main thread;
         // fall back to the deferred spawn path otherwise.

@@ -778,8 +778,8 @@ impl TermWindow {
                 _window.close();
                 front_end().forget_known_window(_window);
             } else {
-                // For normal terminal windows, just hide the window
-                _window.hide();
+                // For normal terminal windows, hide the window without minimize animation
+                _window.order_out();
             }
         }
 
