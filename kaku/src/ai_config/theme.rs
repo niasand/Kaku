@@ -93,12 +93,12 @@ static DARK_THEME: LazyLock<Theme> = LazyLock::new(|| Theme {
 static LIGHT_THEME: LazyLock<Theme> = LazyLock::new(|| Theme {
     primary: parse_hex("#5E3DB3"),
     secondary: parse_hex("#24837B"),
-    accent: parse_hex("#A08200"),
+    accent: parse_hex("#9A7400"),
     error: parse_hex("#AF3029"),
     text: parse_hex("#403E3C"),
-    muted: parse_hex("#6F6E69"),
+    muted: parse_hex("#7A7872"),
     bg: parse_hex("#FFFCF0"),
-    panel: parse_hex("#F2F0E5"),
+    panel: parse_hex("#FAF7EA"),
 });
 
 fn current_theme() -> &'static Theme {
