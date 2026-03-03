@@ -1876,95 +1876,35 @@ impl TermWindow {
         dead: &Arc<AtomicBool>,
     ) -> bool {
         if dead.load(Ordering::Relaxed) {
-            // Subscription cancelled asynchronously
             return false;
         }
 
-        match n {
-            MuxNotification::Alert {
-                pane_id,
-                alert:
-                    Alert::OutputSinceFocusLost
-                    | Alert::CurrentWorkingDirectoryChanged
-                    | Alert::WindowTitleChanged(_)
-                    | Alert::TabTitleChanged(_)
-                    | Alert::IconTitleChanged(_)
-                    | Alert::Progress(_)
-                    | Alert::SetUserVar { .. }
-                    | Alert::Bell,
-            }
-            | MuxNotification::PaneFocused(pane_id)
-            | MuxNotification::PaneRemoved(pane_id)
-            | MuxNotification::PaneOutput(pane_id) => {
-                // Ideally we'd check to see if pane_id is part of this window,
-                // but overlays may not be 100% associated with the window
-                // in the mux and we don't want to lose the invalidation
-                // signal for that case, so we just check window validity
-                // here and propagate to the window event handler that
-                // will then do the check with full context.
+        // Most filtering is done in subscribe_to_pane_updates before spawning.
+        // Here we only do final validity checks that require main thread context.
+        match &n {
+            MuxNotification::PaneFocused(_)
+            | MuxNotification::PaneRemoved(_)
+            | MuxNotification::PaneOutput(_)
+            | MuxNotification::Alert { .. } => {
+                // Verify window still exists
                 let mux = Mux::get();
                 if mux.get_window(mux_window_id).is_none() {
-                    // Something inconsistent: cancel subscription
                     log::debug!(
-                        "PaneOutput: wanted mux_window_id={} from mux, but \
-                         was not found, cancel mux subscription",
+                        "mux_window_id={} not found, cancel subscription",
                         mux_window_id
                     );
                     return false;
                 }
-                let _ = pane_id;
             }
-            MuxNotification::PaneAdded(_pane_id) => {
-                // If some other client spawns a pane inside this window, this
-                // gives us an opportunity to attach it to the clipboard.
+            MuxNotification::PaneAdded(_) => {
                 let mux = Mux::get();
                 return mux.get_window(mux_window_id).is_some();
             }
-            MuxNotification::TabAddedToWindow { window_id, .. }
-            | MuxNotification::WindowTitleChanged { window_id, .. }
-            | MuxNotification::WindowInvalidated(window_id) => {
-                if window_id != mux_window_id {
-                    return true;
-                }
-            }
-            MuxNotification::WindowRemoved(window_id) => {
-                if window_id != mux_window_id {
-                    return true;
-                }
-                // Set the window as dead to unsubscribe from further notifications
-                dead.store(true, Ordering::Relaxed);
-                return false;
-            }
-            MuxNotification::TabResized(tab_id)
-            | MuxNotification::TabTitleChanged { tab_id, .. } => {
-                let mux = Mux::get();
-                if mux.window_containing_tab(tab_id) == Some(mux_window_id) {
-                    // fall through
-                } else {
-                    return true;
-                }
-            }
-            MuxNotification::Alert {
-                alert: Alert::ToastNotification { .. },
-                ..
-            }
-            | MuxNotification::AssignClipboard { .. }
-            | MuxNotification::SaveToDownloads { .. }
-            | MuxNotification::WindowCreated(_)
-            | MuxNotification::ActiveWorkspaceChanged(_)
-            | MuxNotification::WorkspaceRenamed { .. }
-            | MuxNotification::Empty
-            | MuxNotification::WindowWorkspaceChanged(_) => return true,
-            MuxNotification::Alert {
-                alert: Alert::PaletteChanged { .. },
-                ..
-            } => {
-                // fall through
-            }
+            // All other notifications are pre-filtered in subscribe_to_pane_updates
+            _ => {}
         }
 
         window.notify(TermWindowNotif::MuxNotification(n));
-
         true
     }
 
@@ -1978,6 +1918,74 @@ impl TermWindow {
                 return false;
             }
             let mux_window_id = *mux_window_id.lock().unwrap();
+
+            // Pre-filter notifications to avoid unnecessary main thread task spawning.
+            // This reduces O(windows × notifications) fan-out in multi-window scenarios.
+            let dominated_mux = Mux::try_get();
+            match &n {
+                // Notifications with explicit window_id: skip if not for this window
+                MuxNotification::TabAddedToWindow { window_id, .. }
+                | MuxNotification::WindowTitleChanged { window_id, .. }
+                | MuxNotification::WindowInvalidated(window_id) => {
+                    if *window_id != mux_window_id {
+                        return true;
+                    }
+                }
+                MuxNotification::WindowRemoved(window_id) => {
+                    if *window_id != mux_window_id {
+                        return true;
+                    }
+                    dead.store(true, Ordering::Relaxed);
+                    return false;
+                }
+                // Notifications with pane_id: check pane ownership
+                MuxNotification::PaneOutput(pane_id)
+                | MuxNotification::PaneFocused(pane_id)
+                | MuxNotification::PaneRemoved(pane_id)
+                | MuxNotification::PaneAdded(pane_id) => {
+                    if let Some(ref mux) = dominated_mux {
+                        // If we can resolve the pane and it belongs to a different window, skip
+                        if let Some((_, window_id, _)) = mux.resolve_pane_id(*pane_id) {
+                            if window_id != mux_window_id {
+                                return true;
+                            }
+                        }
+                        // If pane not found (e.g. overlay), fall through to spawn
+                    }
+                }
+                // Alert notifications with pane_id
+                MuxNotification::Alert { pane_id, .. } => {
+                    if let Some(ref mux) = dominated_mux {
+                        if let Some((_, window_id, _)) = mux.resolve_pane_id(*pane_id) {
+                            if window_id != mux_window_id {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                // Tab notifications: check tab ownership
+                MuxNotification::TabResized(tab_id)
+                | MuxNotification::TabTitleChanged { tab_id, .. } => {
+                    if let Some(ref mux) = dominated_mux {
+                        if let Some(window_id) = mux.window_containing_tab(*tab_id) {
+                            if window_id != mux_window_id {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                // Global notifications not relevant to individual windows
+                MuxNotification::AssignClipboard { .. }
+                | MuxNotification::SaveToDownloads { .. }
+                | MuxNotification::WindowCreated(_)
+                | MuxNotification::ActiveWorkspaceChanged(_)
+                | MuxNotification::WorkspaceRenamed { .. }
+                | MuxNotification::Empty
+                | MuxNotification::WindowWorkspaceChanged(_) => {
+                    return true;
+                }
+            }
+
             let window = window.clone();
             let dead = dead.clone();
             promise::spawn::spawn_into_main_thread(async move {
