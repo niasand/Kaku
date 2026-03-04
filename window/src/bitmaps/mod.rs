@@ -401,7 +401,6 @@ impl Image {
         let height = (self.height as f64 * scale) as usize;
         self.resize(width, height)
     }
-
 }
 
 impl BitmapImage for Image {
