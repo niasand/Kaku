@@ -577,6 +577,13 @@ fn cell_dimensions(size: &TerminalSize) -> TerminalSize {
 }
 
 impl Tab {
+    fn notify_focused_pane(pane_id: Option<PaneId>) {
+        if let Some(pane_id) = pane_id {
+            let mux = Mux::get();
+            mux.notify(MuxNotification::PaneFocused(pane_id));
+        }
+    }
+
     pub fn new(size: &TerminalSize) -> Self {
         let inner = TabInner::new(size);
         let tab_id = inner.id;
@@ -749,7 +756,8 @@ impl Tab {
     /// intended direction, we take the pane that has the largest
     /// edge intersection.
     pub fn activate_pane_direction(&self, direction: PaneDirection) {
-        self.inner.lock().activate_pane_direction(direction)
+        let focused_pane_id = self.inner.lock().activate_pane_direction(direction);
+        Self::notify_focused_pane(focused_pane_id);
     }
 
     /// Returns an adjacent pane in the specified direction.
@@ -797,11 +805,13 @@ impl Tab {
     }
 
     pub fn set_active_pane(&self, pane: &Arc<dyn Pane>) {
-        self.inner.lock().set_active_pane(pane)
+        let focused_pane_id = self.inner.lock().set_active_pane(pane);
+        Self::notify_focused_pane(focused_pane_id);
     }
 
     pub fn set_active_idx(&self, pane_index: usize) {
-        self.inner.lock().set_active_idx(pane_index)
+        let focused_pane_id = self.inner.lock().set_active_idx(pane_index);
+        Self::notify_focused_pane(focused_pane_id);
     }
 
     /// Assigns the root pane.
@@ -813,9 +823,9 @@ impl Tab {
 
     /// Swap the active pane with the specified pane_index
     pub fn swap_active_with_index(&self, pane_index: usize, keep_focus: bool) -> Option<()> {
-        self.inner
-            .lock()
-            .swap_active_with_index(pane_index, keep_focus)
+        let focused_pane_id = self.inner.lock().swap_active_with_index(pane_index, keep_focus);
+        Self::notify_focused_pane(focused_pane_id);
+        None
     }
 
     /// Computes the size of the pane that would result if the specified
@@ -1710,20 +1720,22 @@ impl TabInner {
         }
     }
 
-    fn activate_pane_direction(&mut self, direction: PaneDirection) {
+    fn activate_pane_direction(&mut self, direction: PaneDirection) -> Option<PaneId> {
+        let mut focused_pane_id = None;
         if self.zoomed.is_some() {
             if !configuration().unzoom_on_switch_pane {
-                return;
+                return None;
             }
             self.toggle_zoom();
         }
         if let Some(panel_idx) = self.get_pane_direction(direction, false) {
-            self.set_active_idx(panel_idx);
+            focused_pane_id = self.set_active_idx(panel_idx);
         }
         let mux = Mux::get();
         if let Some(window_id) = mux.window_containing_tab(self.id) {
             mux.notify(MuxNotification::WindowInvalidated(window_id));
         }
+        focused_pane_id
     }
 
     fn get_pane_direction(&mut self, direction: PaneDirection, ignore_zoom: bool) -> Option<usize> {
@@ -2009,16 +2021,16 @@ impl TabInner {
         self.active
     }
 
-    fn set_active_pane(&mut self, pane: &Arc<dyn Pane>) {
+    fn set_active_pane(&mut self, pane: &Arc<dyn Pane>) -> Option<PaneId> {
         let prior = self.get_active_pane();
 
         if is_pane(pane, &prior.as_ref()) {
-            return;
+            return None;
         }
 
         if self.zoomed.is_some() {
             if !configuration().unzoom_on_switch_pane {
-                return;
+                return None;
             }
             self.toggle_zoom();
         }
@@ -2030,37 +2042,40 @@ impl TabInner {
         {
             self.active = item.index;
             self.recency.tag(item.index);
-            self.advise_focus_change(prior);
+            return self.advise_focus_change(prior);
         }
+
+        None
     }
 
-    fn advise_focus_change(&mut self, prior: Option<Arc<dyn Pane>>) {
-        let mux = Mux::get();
+    fn advise_focus_change(&mut self, prior: Option<Arc<dyn Pane>>) -> Option<PaneId> {
         let current = self.get_active_pane();
         match (prior, current) {
             (Some(prior), Some(current)) if prior.pane_id() != current.pane_id() => {
                 prior.focus_changed(false);
                 current.focus_changed(true);
-                mux.notify(MuxNotification::PaneFocused(current.pane_id()));
+                Some(current.pane_id())
             }
             (None, Some(current)) => {
                 current.focus_changed(true);
-                mux.notify(MuxNotification::PaneFocused(current.pane_id()));
+                Some(current.pane_id())
             }
             (Some(prior), None) => {
                 prior.focus_changed(false);
+                None
             }
             (Some(_), Some(_)) | (None, None) => {
                 // no change
+                None
             }
         }
     }
 
-    fn set_active_idx(&mut self, pane_index: usize) {
+    fn set_active_idx(&mut self, pane_index: usize) -> Option<PaneId> {
         let prior = self.get_active_pane();
         self.active = pane_index;
         self.recency.tag(pane_index);
-        self.advise_focus_change(prior);
+        self.advise_focus_change(prior)
     }
 
     fn assign_pane(&mut self, pane: &Arc<dyn Pane>) {
@@ -2074,7 +2089,7 @@ impl TabInner {
         cell_dimensions(&self.size)
     }
 
-    fn swap_active_with_index(&mut self, pane_index: usize, keep_focus: bool) -> Option<()> {
+    fn swap_active_with_index(&mut self, pane_index: usize, keep_focus: bool) -> Option<PaneId> {
         let active_idx = self.get_active_idx();
         let mut pane = self.get_active_pane()?;
         log::trace!(
@@ -2121,11 +2136,10 @@ impl TabInner {
 
         // And update focus
         if keep_focus {
-            self.set_active_idx(pane_index);
+            self.set_active_idx(pane_index)
         } else {
-            self.advise_focus_change(Some(pane));
+            self.advise_focus_change(Some(pane))
         }
-        None
     }
 
     fn compute_split_size(

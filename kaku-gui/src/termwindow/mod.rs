@@ -1952,6 +1952,10 @@ impl TermWindow {
             // Pre-filter notifications to avoid unnecessary main thread task spawning.
             // This reduces O(windows × notifications) fan-out in multi-window scenarios.
             let dominated_mux = Mux::try_get();
+            let can_resolve_pane_ownership = dominated_mux
+                .as_ref()
+                .map(|mux| !mux.is_main_thread())
+                .unwrap_or(false);
             match &n {
                 // Notifications with explicit window_id: skip if not for this window
                 MuxNotification::TabAddedToWindow { window_id, .. }
@@ -1973,7 +1977,8 @@ impl TermWindow {
                 | MuxNotification::PaneFocused(pane_id)
                 | MuxNotification::PaneRemoved(pane_id)
                 | MuxNotification::PaneAdded(pane_id) => {
-                    if let Some(ref mux) = dominated_mux {
+                    if can_resolve_pane_ownership {
+                        let mux = dominated_mux.as_ref().expect("checked above");
                         // If we can resolve the pane and it belongs to a different window, skip
                         if let Some((_, window_id, _)) = mux.resolve_pane_id(*pane_id) {
                             if window_id != mux_window_id {
@@ -1981,11 +1986,16 @@ impl TermWindow {
                             }
                         }
                         // If pane not found (e.g. overlay), fall through to spawn
+                        //
+                        // Avoid resolving on the main thread: focus changes emit PaneFocused
+                        // while still holding the tab mutex, so resolving ownership here would
+                        // re-enter Tab::iter_panes_ignoring_zoom() and self-deadlock the UI.
                     }
                 }
                 // Alert notifications with pane_id
                 MuxNotification::Alert { pane_id, .. } => {
-                    if let Some(ref mux) = dominated_mux {
+                    if can_resolve_pane_ownership {
+                        let mux = dominated_mux.as_ref().expect("checked above");
                         if let Some((_, window_id, _)) = mux.resolve_pane_id(*pane_id) {
                             if window_id != mux_window_id {
                                 return true;
