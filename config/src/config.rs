@@ -1139,6 +1139,14 @@ impl Config {
         Ok(loaded)
     }
 
+    /// Runtime signature embedded in every cache entry.
+    /// Changing the Kaku version automatically invalidates all cached bytecode,
+    /// preventing cross-version mismatches.
+    const CACHE_SIGNATURE: &'static str = concat!("kaku/", env!("CARGO_PKG_VERSION"), "/lua54");
+
+    /// Magic header for the bytecode cache file format.
+    const CACHE_MAGIC: &'static [u8; 4] = b"KLBC";
+
     /// Compute the bytecode cache path for a given config source file.
     fn bytecode_cache_path(source: &Path) -> PathBuf {
         // Use a hash of the source path to avoid collisions
@@ -1151,26 +1159,92 @@ impl Config {
         crate::CACHE_DIR.join(format!("lua_bytecode_{:016x}.bin", hash))
     }
 
-    /// Try to load bytecode from cache if it is newer than the source file.
-    fn try_load_bytecode_cache(source: &Path) -> Option<Vec<u8>> {
-        let cache_path = Self::bytecode_cache_path(source);
-        let source_mtime = std::fs::metadata(source).ok()?.modified().ok()?;
-        let cache_meta = std::fs::metadata(&cache_path).ok()?;
-        let cache_mtime = cache_meta.modified().ok()?;
-        if cache_mtime > source_mtime {
-            std::fs::read(&cache_path).ok()
-        } else {
-            None
-        }
+    /// Hash the content of a source file for cache validation.
+    fn source_content_hash(content: &[u8]) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        content.hash(&mut hasher);
+        hasher.finish()
     }
 
-    /// Save compiled bytecode to the cache.
-    fn save_bytecode_cache(source: &Path, bytecode: &[u8]) {
+    /// Encode bytecode with a validation header:
+    ///   MAGIC(4) | SIG_LEN(2 LE) | SIGNATURE(SIG_LEN) | SRC_HASH(8 LE) | BYTECODE
+    fn encode_cache(source_content: &[u8], bytecode: &[u8]) -> Vec<u8> {
+        let sig = Self::CACHE_SIGNATURE.as_bytes();
+        let sig_len = sig.len() as u16;
+        let src_hash = Self::source_content_hash(source_content);
+
+        let mut buf = Vec::with_capacity(4 + 2 + sig.len() + 8 + bytecode.len());
+        buf.extend_from_slice(Self::CACHE_MAGIC);
+        buf.extend_from_slice(&sig_len.to_le_bytes());
+        buf.extend_from_slice(sig);
+        buf.extend_from_slice(&src_hash.to_le_bytes());
+        buf.extend_from_slice(bytecode);
+        buf
+    }
+
+    /// Decode and validate cache header; returns raw bytecode on success.
+    fn decode_cache(source_content: &[u8], data: &[u8]) -> Option<Vec<u8>> {
+        // Parse magic
+        if data.get(..4) != Some(Self::CACHE_MAGIC) {
+            log::trace!("bytecode cache: bad magic, invalidating");
+            return None;
+        }
+        let data = &data[4..];
+
+        // Parse signature length + value
+        if data.len() < 2 {
+            return None;
+        }
+        let sig_len = u16::from_le_bytes([data[0], data[1]]) as usize;
+        let data = &data[2..];
+        if data.len() < sig_len {
+            return None;
+        }
+        let cached_sig = &data[..sig_len];
+        if cached_sig != Self::CACHE_SIGNATURE.as_bytes() {
+            log::trace!("bytecode cache: signature mismatch, invalidating");
+            return None;
+        }
+        let data = &data[sig_len..];
+
+        // Parse source content hash
+        if data.len() < 8 {
+            return None;
+        }
+        let mut hash_bytes = [0u8; 8];
+        hash_bytes.copy_from_slice(&data[..8]);
+        let cached_hash = u64::from_le_bytes(hash_bytes);
+        let expected_hash = Self::source_content_hash(source_content);
+        if cached_hash != expected_hash {
+            log::trace!("bytecode cache: source hash mismatch, invalidating");
+            return None;
+        }
+
+        Some(data[8..].to_vec())
+    }
+
+    /// Try to load bytecode from cache, validating header + source hash.
+    fn try_load_bytecode_cache(source: &Path, source_content: &[u8]) -> Option<Vec<u8>> {
+        let cache_path = Self::bytecode_cache_path(source);
+        // Quick mtime guard: skip reading the file if source is newer
+        let source_mtime = std::fs::metadata(source).ok()?.modified().ok()?;
+        let cache_mtime = std::fs::metadata(&cache_path).ok()?.modified().ok()?;
+        if cache_mtime <= source_mtime {
+            return None;
+        }
+        let data = std::fs::read(&cache_path).ok()?;
+        Self::decode_cache(source_content, &data)
+    }
+
+    /// Save compiled bytecode to the cache with validation header.
+    fn save_bytecode_cache(source: &Path, source_content: &[u8], bytecode: &[u8]) {
         let cache_path = Self::bytecode_cache_path(source);
         if let Some(parent) = cache_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        if let Err(err) = std::fs::write(&cache_path, bytecode) {
+        let encoded = Self::encode_cache(source_content, bytecode);
+        if let Err(err) = std::fs::write(&cache_path, &encoded) {
             log::trace!("failed to write bytecode cache: {:#}", err);
         }
     }
@@ -1194,7 +1268,8 @@ impl Config {
         let lua = make_lua_context(p)?;
 
         // Try loading from bytecode cache first
-        let cached_bytecode = Self::try_load_bytecode_cache(p);
+        let source_bytes = s.as_bytes();
+        let cached_bytecode = Self::try_load_bytecode_cache(p, source_bytes);
 
         let (config, warnings) =
             wezterm_dynamic::Error::capture_warnings(|| -> anyhow::Result<Config> {
@@ -1253,7 +1328,7 @@ impl Config {
                         .into_function()
                         .map_err(&map_lua_err)?;
                     let bytecode = func.dump(true);
-                    Self::save_bytecode_cache(p, &bytecode);
+                    Self::save_bytecode_cache(p, source_bytes, &bytecode);
                     smol::block_on(func.call_async::<_, mlua::Value>(())).map_err(&map_lua_err)?
                 };
 

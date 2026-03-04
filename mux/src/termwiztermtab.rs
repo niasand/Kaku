@@ -52,6 +52,7 @@ impl TermWizTerminalDomain {
 impl Domain for TermWizTerminalDomain {
     async fn spawn_pane(
         &self,
+        _mux: &Mux,
         _size: TerminalSize,
         _command: Option<CommandBuilder>,
         _command_dir: Option<String>,

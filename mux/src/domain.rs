@@ -108,6 +108,7 @@ pub trait Domain: Downcast + Send + Sync {
     /// Spawn a new command within this domain
     async fn spawn(
         &self,
+        mux: &Mux,
         size: TerminalSize,
         command: Option<CommandBuilder>,
         command_dir: Option<String>,
@@ -115,14 +116,13 @@ pub trait Domain: Downcast + Send + Sync {
         window: WindowId,
     ) -> anyhow::Result<Arc<Tab>> {
         let pane = self
-            .spawn_pane(size, command, command_dir, encoding)
+            .spawn_pane(mux, size, command, command_dir, encoding)
             .await
             .context("spawn")?;
 
         let tab = Arc::new(Tab::new(&size));
         tab.assign_pane(&pane);
 
-        let mux = Mux::try_get().ok_or_else(|| anyhow::anyhow!("Mux is not initialized"))?;
         mux.add_tab_and_active_pane(&tab)?;
         mux.add_tab_to_window(&tab, window)?;
 
@@ -131,12 +131,12 @@ pub trait Domain: Downcast + Send + Sync {
 
     async fn split_pane(
         &self,
+        mux: &Mux,
         source: SplitSource,
         tab: TabId,
         pane_id: PaneId,
         split_request: SplitRequest,
     ) -> anyhow::Result<Arc<dyn Pane>> {
-        let mux = Mux::try_get().ok_or_else(|| anyhow::anyhow!("Mux is not initialized"))?;
         let tab = match mux.get_tab(tab) {
             Some(t) => t,
             None => anyhow::bail!("Invalid tab id {}", tab),
@@ -161,8 +161,14 @@ pub trait Domain: Downcast + Send + Sync {
                 command,
                 command_dir,
             } => {
-                self.spawn_pane(split_size.second, command, command_dir, source_encoding)
-                    .await?
+                self.spawn_pane(
+                    mux,
+                    split_size.second,
+                    command,
+                    command_dir,
+                    source_encoding,
+                )
+                .await?
             }
             SplitSource::MovePane(src_pane_id) => {
                 let (_domain, _window, src_tab) = mux
@@ -201,6 +207,7 @@ pub trait Domain: Downcast + Send + Sync {
 
     async fn spawn_pane(
         &self,
+        mux: &Mux,
         size: TerminalSize,
         command: Option<CommandBuilder>,
         command_dir: Option<String>,
@@ -508,6 +515,7 @@ impl LocalDomain {
 
     async fn build_command(
         &self,
+        mux: &Mux,
         command: Option<CommandBuilder>,
         command_dir: Option<String>,
         pane_id: PaneId,
@@ -540,10 +548,8 @@ impl LocalDomain {
             cmd.env("WEZTERM_UNIX_SOCKET", sock);
         }
         cmd.env("WEZTERM_PANE", pane_id.to_string());
-        if let Some(mux) = Mux::try_get() {
-            if let Some(agent) = mux.agent.as_ref() {
-                cmd.env("SSH_AUTH_SOCK", agent.path());
-            }
+        if let Some(agent) = mux.agent.as_ref() {
+            cmd.env("SSH_AUTH_SOCK", agent.path());
         }
         self.fixup_command(&mut cmd).await?;
         Ok(cmd)
@@ -658,6 +664,7 @@ impl portable_pty::ChildKiller for FailedProcessSpawn {
 impl Domain for LocalDomain {
     async fn spawn_pane(
         &self,
+        mux: &Mux,
         size: TerminalSize,
         command: Option<CommandBuilder>,
         command_dir: Option<String>,
@@ -665,7 +672,7 @@ impl Domain for LocalDomain {
     ) -> anyhow::Result<Arc<dyn Pane>> {
         let pane_id = alloc_pane_id();
         let cmd = self
-            .build_command(command, command_dir, pane_id)
+            .build_command(mux, command, command_dir, pane_id)
             .await
             .context("build_command")?;
         let pair = self
@@ -733,7 +740,6 @@ impl Domain for LocalDomain {
             }
         };
 
-        let mux = Mux::try_get().ok_or_else(|| anyhow::anyhow!("Mux is not initialized"))?;
         mux.add_pane(&pane)?;
 
         Ok(pane)

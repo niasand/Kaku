@@ -1361,7 +1361,9 @@ impl Mux {
             other => other,
         };
 
-        let pane = domain.split_pane(source, tab_id, pane_id, request).await?;
+        let pane = domain
+            .split_pane(self, source, tab_id, pane_id, request)
+            .await?;
         if let Some(config) = term_config {
             pane.set_config(config);
         }
@@ -1518,6 +1520,7 @@ impl Mux {
 
         let tab = domain
             .spawn(
+                self,
                 size,
                 command.clone(),
                 cwd.clone(),

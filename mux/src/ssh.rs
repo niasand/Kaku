@@ -710,6 +710,7 @@ fn connect_ssh_session(
 impl Domain for RemoteSshDomain {
     async fn spawn_pane(
         &self,
+        _mux: &Mux,
         size: TerminalSize,
         command: Option<CommandBuilder>,
         command_dir: Option<String>,

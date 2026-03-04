@@ -1018,7 +1018,15 @@ impl TermWindow {
 
         let render_state = None;
 
-        let connection_name = Connection::get().unwrap().name();
+        let connection_name = Connection::get().map_or_else(
+            || {
+                log::warn!(
+                    "window connection is not initialized while creating TermWindow; using placeholder"
+                );
+                "uninitialized".to_string()
+            },
+            |conn| conn.name(),
+        );
 
         let myself = Self {
             created: Instant::now(),
@@ -2185,7 +2193,15 @@ impl TermWindow {
             self.config_overrides
         );
         self.key_table_state.clear_stack();
-        self.connection_name = Connection::get().unwrap().name();
+        self.connection_name = Connection::get().map_or_else(
+            || {
+                log::warn!(
+                    "window connection is not initialized during config reload; keeping placeholder"
+                );
+                "uninitialized".to_string()
+            },
+            |conn| conn.name(),
+        );
         let config = if matches!(&self.config_overrides, Value::Null)
             || matches!(&self.config_overrides, Value::Object(obj) if obj.is_empty())
         {
@@ -3628,6 +3644,7 @@ impl TermWindow {
                         let config = config::configuration();
                         let _tab = domain
                             .spawn(
+                                &mux,
                                 config.initial_size(
                                     dpi,
                                     Some(crate::cell_pixel_dims(&config, dpi as f64)?),

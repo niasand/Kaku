@@ -753,6 +753,7 @@ impl Domain for ClientDomain {
 
     async fn spawn_pane(
         &self,
+        _mux: &Mux,
         _size: TerminalSize,
         _command: Option<CommandBuilder>,
         _command_dir: Option<String>,
@@ -817,6 +818,7 @@ impl Domain for ClientDomain {
 
     async fn spawn(
         &self,
+        mux: &Mux,
         size: TerminalSize,
         command: Option<CommandBuilder>,
         command_dir: Option<String>,
@@ -827,7 +829,7 @@ impl Domain for ClientDomain {
             .inner()
             .ok_or_else(|| anyhow!("domain is not attached"))?;
 
-        let workspace = Mux::get().active_workspace();
+        let workspace = mux.active_workspace();
 
         let result = inner
             .client
@@ -855,7 +857,6 @@ impl Domain for ClientDomain {
         inner.remove_old_tab_mapping(result.tab_id);
         inner.record_remote_to_local_tab_mapping(result.tab_id, tab.tab_id());
 
-        let mux = Mux::get();
         mux.add_tab_and_active_pane(&tab)?;
         mux.add_tab_to_window(&tab, window)?;
 
@@ -864,6 +865,7 @@ impl Domain for ClientDomain {
 
     async fn split_pane(
         &self,
+        mux: &Mux,
         source: SplitSource,
         tab_id: TabId,
         pane_id: PaneId,
@@ -872,8 +874,6 @@ impl Domain for ClientDomain {
         let inner = self
             .inner()
             .ok_or_else(|| anyhow!("domain is not attached"))?;
-
-        let mux = Mux::get();
 
         let tab = mux
             .get_tab(tab_id)

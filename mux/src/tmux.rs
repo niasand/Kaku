@@ -365,6 +365,7 @@ impl TmuxDomain {
 impl Domain for TmuxDomain {
     async fn spawn(
         &self,
+        _mux: &Mux,
         _size: TerminalSize,
         _command: Option<CommandBuilder>,
         _command_dir: Option<String>,
@@ -380,6 +381,7 @@ impl Domain for TmuxDomain {
 
     async fn split_pane(
         &self,
+        _mux: &Mux,
         _source: SplitSource,
         tab: TabId,
         pane_id: PaneId,
@@ -404,6 +406,7 @@ impl Domain for TmuxDomain {
 
     async fn spawn_pane(
         &self,
+        _mux: &Mux,
         _size: TerminalSize,
         _command: Option<CommandBuilder>,
         _command_dir: Option<String>,

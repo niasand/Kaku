@@ -193,6 +193,7 @@ async fn spawn_tab_in_domain_if_mux_is_empty(
     let dpi = config.dpi.unwrap_or_else(|| ::window::default_dpi());
     let _tab = domain
         .spawn(
+            &mux,
             // Keep spawn path light; GUI will publish definitive pixel geometry
             // right after the first window is created.
             config.initial_size(dpi as u32, None),
@@ -361,6 +362,7 @@ async fn async_run_terminal_gui(
             let dpi = config.dpi.unwrap_or_else(|| ::window::default_dpi());
             let tab = domain
                 .spawn(
+                    &mux,
                     // Keep spawn path light; GUI will publish definitive pixel geometry
                     // right after the first window is created.
                     config.initial_size(dpi as u32, None),

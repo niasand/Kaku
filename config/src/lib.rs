@@ -925,6 +925,7 @@ struct ConfigInner {
     warnings: Vec<String>,
     generation: usize,
     watcher: Option<notify::RecommendedWatcher>,
+    watched_paths: std::collections::HashSet<PathBuf>,
     defer_watchers_until_enabled: bool,
     pending_watch_paths: Vec<PathBuf>,
     subscribers: HashMap<usize, Arc<dyn Fn() -> bool + Send + Sync>>,
@@ -938,6 +939,7 @@ impl ConfigInner {
             warnings: vec![],
             generation: 0,
             watcher: None,
+            watched_paths: std::collections::HashSet::new(),
             defer_watchers_until_enabled: false,
             pending_watch_paths: vec![],
             subscribers: HashMap::new(),
@@ -976,53 +978,91 @@ impl ConfigInner {
         if self.watcher.is_none() {
             let (tx, rx) = std::sync::mpsc::channel();
             const DELAY: Duration = Duration::from_millis(100);
-            let watcher = notify::recommended_watcher(tx).unwrap();
-            let path = path.clone();
+            match notify::recommended_watcher(tx) {
+                Ok(watcher) => {
+                    std::thread::spawn(move || {
+                        use notify::EventKind;
 
-            std::thread::spawn(move || {
-                // block until we get an event
-                use notify::EventKind;
-
-                fn extract_path(event: notify::Event) -> Vec<PathBuf> {
-                    match event.kind {
-                        EventKind::Modify(_) | EventKind::Create(_) | EventKind::Remove(_) => {
-                            event.paths
-                        }
-                        _ => vec![],
-                    }
-                }
-
-                while let Ok(event) = rx.recv() {
-                    log::debug!("event:{:?}", event);
-                    match event {
-                        Ok(event) => {
-                            let mut paths = extract_path(event);
-                            if !paths.is_empty() {
-                                // Grace period to allow events to settle
-                                std::thread::sleep(DELAY);
-                                // Drain any other immediately ready events
-                                while let Ok(Ok(event)) = rx.try_recv() {
-                                    paths.append(&mut extract_path(event));
-                                }
-                                paths.sort();
-                                paths.dedup();
-                                log::debug!("paths {:?} changed, reload config", path);
-                                reload();
+                        fn extract_path(event: notify::Event) -> Vec<PathBuf> {
+                            match event.kind {
+                                EventKind::Modify(_)
+                                | EventKind::Create(_)
+                                | EventKind::Remove(_) => event.paths,
+                                _ => vec![],
                             }
                         }
-                        Err(_) => {
-                            reload();
+
+                        while let Ok(event) = rx.recv() {
+                            log::debug!("config watcher event: {:?}", event);
+                            match event {
+                                Ok(event) => {
+                                    let mut paths = extract_path(event);
+                                    if !paths.is_empty() {
+                                        // Grace period to allow events to settle
+                                        std::thread::sleep(DELAY);
+                                        // Drain any other immediately ready events
+                                        while let Ok(Ok(event)) = rx.try_recv() {
+                                            paths.append(&mut extract_path(event));
+                                        }
+                                        paths.sort();
+                                        paths.dedup();
+                                        log::debug!("config paths {:?} changed, reloading", paths);
+                                        reload();
+                                    }
+                                }
+                                Err(err) => {
+                                    log::warn!("config watcher error (forcing reload): {:#}", err);
+                                    reload();
+                                }
+                            }
                         }
-                    }
+                    });
+                    self.watcher.replace(watcher);
                 }
-            });
-            self.watcher.replace(watcher);
+                Err(err) => {
+                    log::warn!(
+                        "Failed to create filesystem watcher, \
+                         automatic config reload will be unavailable: {:#}",
+                        err
+                    );
+                    return;
+                }
+            }
+        }
+        // Skip paths already being watched to avoid duplicate registrations
+        if self.watched_paths.contains(&path) {
+            return;
         }
         if let Some(watcher) = self.watcher.as_mut() {
             use notify::Watcher;
-            watcher
-                .watch(&path, notify::RecursiveMode::NonRecursive)
-                .ok();
+            match watcher.watch(&path, notify::RecursiveMode::NonRecursive) {
+                Ok(()) => {
+                    log::trace!("watching config path: {}", path.display());
+                    self.watched_paths.insert(path);
+                }
+                Err(err) => {
+                    log::warn!("Failed to watch config path {}: {:#}", path.display(), err);
+                }
+            }
+        }
+    }
+
+    /// Unwatch paths that are no longer in the active watch set.
+    fn unwatch_stale_paths(&mut self, active_paths: &std::collections::HashSet<PathBuf>) {
+        let stale: Vec<PathBuf> = self
+            .watched_paths
+            .iter()
+            .filter(|p| !active_paths.contains(*p))
+            .cloned()
+            .collect();
+        for path in stale {
+            if let Some(watcher) = self.watcher.as_mut() {
+                use notify::Watcher;
+                if let Err(err) = watcher.unwatch(&path) {
+                    log::warn!("Failed to unwatch {}: {:#}", path.display(), err);
+                }
+            }
+            self.watched_paths.remove(&path);
         }
     }
 
@@ -1102,10 +1142,17 @@ impl ConfigInner {
             if self.defer_watchers_until_enabled {
                 self.pending_watch_paths = watch_paths;
             } else {
+                let active: std::collections::HashSet<PathBuf> =
+                    watch_paths.iter().cloned().collect();
+                self.unwatch_stale_paths(&active);
                 for path in watch_paths {
                     self.watch_path(path);
                 }
             }
+        } else {
+            // Config reload disabled — drop all watchers
+            let empty = std::collections::HashSet::new();
+            self.unwatch_stale_paths(&empty);
         }
 
         subscribers
