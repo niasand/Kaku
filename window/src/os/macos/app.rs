@@ -295,17 +295,20 @@ fn toggle_hotkey_window() {
         return;
     }
 
-    let existing_window = {
+    let existing_windows: Vec<_> = {
         let windows = conn.windows.borrow();
-        windows.values().next().cloned()
+        windows.values().cloned().collect()
     };
 
-    if let Some(window) = existing_window {
+    if !existing_windows.is_empty() {
         unsafe {
+            let () = msg_send![NSApp(), unhide: NSApp()];
             let current_app = NSRunningApplication::currentApplication(nil);
             current_app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps);
         }
-        window.borrow_mut().focus();
+        for window in existing_windows {
+            window.borrow_mut().focus();
+        }
     } else {
         conn.dispatch_app_event(ApplicationEvent::PerformKeyAssignment(
             KeyAssignment::SpawnWindow,
@@ -538,15 +541,17 @@ extern "C" fn application_open_untitled_file(
     let launched: BOOL = unsafe { *this.get_ivar("launched") };
     if let Some(conn) = Connection::get() {
         if launched == YES {
-            let existing_window = {
+            let existing_windows: Vec<_> = {
                 let windows = conn.windows.borrow();
-                windows.values().next().cloned()
+                windows.values().cloned().collect()
             };
-            if let Some(window) = existing_window {
+            if !existing_windows.is_empty() {
                 LAST_OPEN_UNTITLED_SPAWN.with(|last| {
                     last.borrow_mut().take();
                 });
-                window.borrow_mut().focus();
+                for window in existing_windows {
+                    window.borrow_mut().focus();
+                }
             } else {
                 if should_suppress_open_untitled_spawn() {
                     log::debug!(

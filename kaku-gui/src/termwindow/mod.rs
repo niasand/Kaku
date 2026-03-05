@@ -2310,6 +2310,12 @@ impl TermWindow {
             log::error!("Failed to load font configuration: {:#}", err);
         }
 
+        // Recreate texture atlas to ensure subpixel AA and font rendering changes
+        // correctly flush out the old cached glyphs when theme changes.
+        if let Err(err) = self.recreate_texture_atlas(None) {
+            log::error!("recreate_texture_atlas after config reload failed: {:#}", err);
+        }
+
         if let Some(window) = mux.get_window(self.mux_window_id) {
             let term_config: Arc<dyn TerminalConfiguration> =
                 Arc::new(TermConfig::with_config(config.clone()));
@@ -3828,10 +3834,11 @@ impl TermWindow {
                         if path.exists() {
                             log::info!("Opening file path: {:?}", path);
                             std::thread::spawn(move || {
-                                std::process::Command::new("/usr/bin/open")
-                                    .arg(&path)
-                                    .status()
-                                    .ok();
+                                let mut cmd = std::process::Command::new("/usr/bin/open");
+                                if path.is_file() {
+                                    cmd.arg("-R");
+                                }
+                                cmd.arg(&path).status().ok();
                             });
                         } else {
                             log::warn!("File does not exist: {:?}", path);
