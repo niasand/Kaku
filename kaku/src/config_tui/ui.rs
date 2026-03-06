@@ -25,7 +25,7 @@ pub(super) fn ui(frame: &mut ratatui::Frame, app: &mut App) {
     .split(area);
 
     render_header(frame, chunks[0]);
-    
+
     // Render the form
     app.form.render(frame, chunks[1]);
 }

@@ -3,8 +3,8 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
 
-use crate::tui_core::theme::{bg, green, muted, panel, purple, red, text_fg, yellow};
 use super::App;
+use crate::tui_core::theme::{bg, green, muted, panel, purple, red, text_fg, yellow};
 
 pub(super) fn ui(frame: &mut ratatui::Frame, app: &mut App) {
     let full = frame.area();

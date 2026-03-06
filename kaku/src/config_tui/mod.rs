@@ -1,6 +1,6 @@
 mod app;
-mod ui;
 mod state;
+mod ui;
 
 use anyhow::Context;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
@@ -13,15 +13,14 @@ use ratatui::Terminal;
 use std::io;
 use std::path::PathBuf;
 
-
-use config;
-use crate::tui_core::components::{
-    select_box::SelectBox, text_input::TextInput, toggle::Toggle,
-};
+use crate::tui_core::components::select_box::SelectBox;
+use crate::tui_core::components::text_input::TextInput;
+use crate::tui_core::components::toggle::Toggle;
 use crate::tui_core::form::{FormApp, FormField, FormFieldWidget};
 use crate::tui_core::EventResult;
-use state::ConfigField;
 pub use app::App;
+use config;
+use state::ConfigField;
 
 pub fn run() -> anyhow::Result<()> {
     enable_raw_mode().context("enable raw mode")?;
@@ -136,7 +135,6 @@ fn run_app(
         }
     }
 }
-
 
 fn signal_config_changed() {
     use std::io::Write;

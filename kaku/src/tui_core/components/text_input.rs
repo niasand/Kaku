@@ -1,11 +1,9 @@
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
-use ratatui::{
-    layout::Rect,
-    style::{Color, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
-    Frame,
-};
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::Frame;
 
 use crate::tui_core::{EventResult, Widget};
 
@@ -115,7 +113,10 @@ impl Widget for TextInput {
             return EventResult::Ignored;
         }
 
-        if let Event::Key(KeyEvent { code, modifiers, .. }) = event {
+        if let Event::Key(KeyEvent {
+            code, modifiers, ..
+        }) = event
+        {
             match code {
                 KeyCode::Char(c) => {
                     if !modifiers.contains(KeyModifiers::CONTROL)

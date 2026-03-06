@@ -1,7 +1,9 @@
-use std::path::PathBuf;
-use crate::tui_core::components::{select_box::SelectBox, text_input::TextInput, toggle::Toggle};
-use crate::tui_core::form::{FormApp, FormField, FormFieldWidget};
 use super::state::ConfigField;
+use crate::tui_core::components::select_box::SelectBox;
+use crate::tui_core::components::text_input::TextInput;
+use crate::tui_core::components::toggle::Toggle;
+use crate::tui_core::form::{FormApp, FormField, FormFieldWidget};
+use std::path::PathBuf;
 
 pub struct App {
     pub form: FormApp<ConfigField>,
@@ -96,28 +98,38 @@ impl App {
             },
         ];
 
-        let form_fields = fields.into_iter().map(|f| {
-            let widget = if f.has_options() {
-                if f.options.len() == 2 && (f.options.contains(&"On") || f.options.contains(&"Bottom")) {
-                    FormFieldWidget::Toggle(Toggle::new(f.value == "On" || f.value == "Bottom", f.key))
+        let form_fields = fields
+            .into_iter()
+            .map(|f| {
+                let widget = if f.has_options() {
+                    if f.options.len() == 2
+                        && (f.options.contains(&"On") || f.options.contains(&"Bottom"))
+                    {
+                        FormFieldWidget::Toggle(Toggle::new(
+                            f.value == "On" || f.value == "Bottom",
+                            f.key,
+                        ))
+                    } else {
+                        FormFieldWidget::SelectBox(SelectBox::new(
+                            f.options.iter().map(|s| s.to_string()).collect(),
+                            0,
+                            f.key,
+                        ))
+                    }
                 } else {
-                    FormFieldWidget::SelectBox(SelectBox::new(
-                        f.options.iter().map(|s| s.to_string()).collect(),
-                        0,
-                        f.key,
-                    ))
-                }
-            } else {
-                FormFieldWidget::TextInput(TextInput::new(f.value.clone()).with_placeholder(f.default.clone()))
-            };
+                    FormFieldWidget::TextInput(
+                        TextInput::new(f.value.clone()).with_placeholder(f.default.clone()),
+                    )
+                };
 
-            FormField {
-                key: f.lua_key.to_string(),
-                label: f.key.to_string(),
-                widget,
-                data: f,
-            }
-        }).collect();
+                FormField {
+                    key: f.lua_key.to_string(),
+                    label: f.key.to_string(),
+                    widget,
+                    data: f,
+                }
+            })
+            .collect();
 
         Self {
             form: FormApp::new(form_fields),
@@ -658,9 +670,17 @@ impl App {
                 }
                 FormFieldWidget::Toggle(w) => {
                     if field.data.lua_key == "tab_bar_at_bottom" {
-                        field.data.value = if w.is_on { "Bottom".to_string() } else { "Top".to_string() };
+                        field.data.value = if w.is_on {
+                            "Bottom".to_string()
+                        } else {
+                            "Top".to_string()
+                        };
                     } else {
-                        field.data.value = if w.is_on { "On".to_string() } else { "Off".to_string() };
+                        field.data.value = if w.is_on {
+                            "On".to_string()
+                        } else {
+                            "Off".to_string()
+                        };
                     }
                 }
                 FormFieldWidget::SelectBox(w) => {
@@ -679,7 +699,12 @@ impl App {
         Ok(())
     }
     pub fn capture_initial_theme(&mut self) {
-        if let Some(field) = self.form.fields.iter().find(|f| f.data.lua_key == "color_scheme") {
+        if let Some(field) = self
+            .form
+            .fields
+            .iter()
+            .find(|f| f.data.lua_key == "color_scheme")
+        {
             self.initial_theme = if field.data.value.is_empty() {
                 field.data.default.clone()
             } else {
@@ -690,7 +715,12 @@ impl App {
 
     pub fn theme_changed(&mut self) -> bool {
         self.sync_widgets_to_data();
-        if let Some(field) = self.form.fields.iter().find(|f| f.data.lua_key == "color_scheme") {
+        if let Some(field) = self
+            .form
+            .fields
+            .iter()
+            .find(|f| f.data.lua_key == "color_scheme")
+        {
             let current = if field.data.value.is_empty() {
                 &field.data.default
             } else {

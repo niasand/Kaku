@@ -1,5 +1,3 @@
-
-
 #[derive(Clone)]
 pub struct ConfigField {
     pub key: &'static str,

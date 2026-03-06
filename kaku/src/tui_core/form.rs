@@ -1,16 +1,12 @@
 use crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::{
-    layout::Rect,
-    Frame,
-};
+use ratatui::layout::Rect;
+use ratatui::Frame;
 
+use crate::tui_core::components::list_editor::ListEditor;
+use crate::tui_core::components::select_box::SelectBox;
+use crate::tui_core::components::text_input::TextInput;
+use crate::tui_core::components::toggle::Toggle;
 use crate::tui_core::{EventResult, Widget};
-use crate::tui_core::components::{
-    text_input::TextInput,
-    toggle::Toggle,
-    select_box::SelectBox,
-    list_editor::ListEditor,
-};
 
 pub enum FormFieldWidget {
     TextInput(TextInput),
@@ -116,10 +112,11 @@ impl<T> FormApp<T> {
 impl<T> Widget for FormApp<T> {
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         use ratatui::layout::{Constraint, Layout};
-        
-        let constraints: Vec<Constraint> = self.fields.iter().map(|_| Constraint::Length(3)).collect();
+
+        let constraints: Vec<Constraint> =
+            self.fields.iter().map(|_| Constraint::Length(3)).collect();
         let chunks = Layout::vertical(constraints).split(area);
-        
+
         for (i, field) in self.fields.iter_mut().enumerate() {
             if i < chunks.len() {
                 field.widget.render(frame, chunks[i]);

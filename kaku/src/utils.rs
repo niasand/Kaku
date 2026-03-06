@@ -279,9 +279,7 @@ pub fn open_in_editor(path: &Path) -> anyhow::Result<()> {
     #[cfg(not(target_os = "macos"))]
     {
         if let Ok(editor) = std::env::var("EDITOR") {
-            std::process::Command::new(editor)
-                .arg(path)
-                .status()?;
+            std::process::Command::new(editor).arg(path).status()?;
         } else {
             // Fallback for Linux/Windows
             #[cfg(target_os = "windows")]
@@ -291,9 +289,7 @@ pub fn open_in_editor(path: &Path) -> anyhow::Result<()> {
                 .status()?;
 
             #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-            std::process::Command::new("xdg-open")
-                .arg(path)
-                .status()?;
+            std::process::Command::new("xdg-open").arg(path).status()?;
         }
     }
 

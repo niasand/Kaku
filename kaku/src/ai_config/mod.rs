@@ -1,5 +1,4 @@
-pub 
-mod tui;
+pub mod tui;
 
 use anyhow::Context;
 use clap::Parser;
