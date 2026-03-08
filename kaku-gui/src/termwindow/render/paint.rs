@@ -507,6 +507,10 @@ impl crate::TermWindow {
         if self.focused.is_none() {
             return;
         }
+        // Fast path: skip mux lock if no panes have unread bells
+        if !self.pane_state.borrow().values().any(|s| s.has_unread_bell) {
+            return;
+        }
         let mux = mux::Mux::get();
         let mux_window = match mux.get_window(self.mux_window_id) {
             Some(w) => w,
@@ -537,6 +541,13 @@ impl crate::TermWindow {
     ) -> anyhow::Result<()> {
         use crate::tabbar::TabBarItem;
 
+        // Fast path: skip mux lock entirely if no panes have unread bells
+        if !self.config.bell_tab_indicator
+            || !self.pane_state.borrow().values().any(|s| s.has_unread_bell)
+        {
+            return Ok(());
+        }
+
         // Figure out which tab indices have unread bell panes
         let mux = mux::Mux::get();
         let mux_window = match mux.get_window(self.mux_window_id) {
@@ -559,8 +570,7 @@ impl crate::TermWindow {
             }
         }
 
-        // Skip drawing if no bells or indicator is disabled
-        if tabs_with_bell.is_empty() || !self.config.bell_tab_indicator {
+        if tabs_with_bell.is_empty() {
             return Ok(());
         }
 
