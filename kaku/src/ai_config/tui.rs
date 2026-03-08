@@ -101,6 +101,9 @@ const UI_STATUS_TTL: Duration = Duration::from_secs(3);
 const UI_ERROR_TTL: Duration = Duration::from_secs(5);
 const CLAUDE_OAUTH_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 const CLAUDE_OAUTH_TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token";
+const KIMI_OAUTH_CLIENT_ID: &str = "17e5f671-d194-4dfb-9706-5516cb48c098";
+const KIMI_OAUTH_TOKEN_URL: &str = "https://auth.kimi.com/api/oauth/token";
+const KIMI_DEFAULT_BASE_URL: &str = "https://api.kimi.com/coding/v1";
 
 static UI_ERRORS: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
 
@@ -239,7 +242,12 @@ impl ToolState {
                     .then(|| load_codex_usage_snapshot().and_then(|snapshot| snapshot.summary))
                     .flatten(),
             ),
-            Tool::Kimi => (extract_kimi_fields(&raw), None),
+            Tool::Kimi => (
+                extract_kimi_fields(&raw),
+                eager_remote_usage
+                    .then(|| load_kimi_usage_snapshot().and_then(|snapshot| snapshot.summary))
+                    .flatten(),
+            ),
             Tool::Gemini => {
                 let parsed = parse_json_with_debug(&raw, tool.label());
                 (
@@ -331,7 +339,7 @@ fn summarize_tool_fields(
 
     if matches!(
         tool,
-        Tool::Codex | Tool::ClaudeCode | Tool::Gemini | Tool::Copilot
+        Tool::Codex | Tool::ClaudeCode | Tool::Kimi | Tool::Gemini | Tool::Copilot
     ) {
         return usage_summary
             .map(str::to_string)
@@ -376,6 +384,10 @@ struct CopilotUsageSnapshot {
     summary: Option<String>,
 }
 
+struct KimiUsageSnapshot {
+    summary: Option<String>,
+}
+
 #[derive(Clone)]
 struct UsageSummaryUpdate {
     tool: Tool,
@@ -401,6 +413,13 @@ fn copilot_usage_cache_path() -> PathBuf {
         .join(".cache")
         .join("kaku")
         .join("copilot_usage.json")
+}
+
+fn kimi_usage_cache_path() -> PathBuf {
+    config::HOME_DIR
+        .join(".cache")
+        .join("kaku")
+        .join("kimi_usage.json")
 }
 
 fn read_codex_auth_info() -> Option<(String, String)> {
@@ -469,13 +488,17 @@ fn format_reset_time_from_iso(reset_at: &str) -> Option<String> {
 }
 
 fn supports_remote_usage(tool: Tool) -> bool {
-    matches!(tool, Tool::ClaudeCode | Tool::Codex | Tool::Copilot)
+    matches!(
+        tool,
+        Tool::ClaudeCode | Tool::Codex | Tool::Kimi | Tool::Copilot
+    )
 }
 
 fn load_usage_summary(tool: Tool) -> Option<String> {
     match tool {
         Tool::ClaudeCode => load_claude_usage_snapshot().and_then(|snapshot| snapshot.summary),
         Tool::Codex => load_codex_usage_snapshot().and_then(|snapshot| snapshot.summary),
+        Tool::Kimi => load_kimi_usage_snapshot().and_then(|snapshot| snapshot.summary),
         Tool::Copilot => load_copilot_usage_snapshot().and_then(|snapshot| snapshot.summary),
         _ => None,
     }
@@ -929,6 +952,264 @@ fn parse_claude_usage_snapshot(data: &serde_json::Value) -> Option<ClaudeUsageSn
 fn load_claude_usage_snapshot() -> Option<ClaudeUsageSnapshot> {
     let data = fetch_claude_usage_json()?;
     parse_claude_usage_snapshot(&data)
+}
+
+fn read_kimi_oauth_credentials() -> Option<serde_json::Value> {
+    read_json_file_with_debug(&kimi_credentials_path(), "kimi credentials")
+}
+
+fn write_kimi_oauth_credentials(credentials: &serde_json::Value) -> Option<()> {
+    let path = kimi_credentials_path();
+    let bytes = serde_json::to_vec(credentials)
+        .map_err(|err| log::debug!("failed to serialize kimi credentials: {}", err))
+        .ok()?;
+    write_atomic(&path, &bytes)
+        .map_err(|err| log::debug!("failed to write kimi credentials: {}", err))
+        .ok()?;
+    Some(())
+}
+
+fn read_kimi_access_token() -> Option<String> {
+    read_kimi_oauth_credentials()?
+        .get("access_token")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+fn read_kimi_refresh_token() -> Option<String> {
+    read_kimi_oauth_credentials()?
+        .get("refresh_token")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+fn kimi_access_token_needs_refresh() -> bool {
+    let Some(credentials) = read_kimi_oauth_credentials() else {
+        return false;
+    };
+    let expires_at = credentials
+        .get("expires_at")
+        .and_then(|value| value.as_f64())
+        .unwrap_or(0.0);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_secs_f64())
+        .unwrap_or(0.0);
+    expires_at <= now + 300.0
+}
+
+fn refresh_kimi_access_token() -> Option<String> {
+    let current_credentials = read_kimi_oauth_credentials()?;
+    let refresh_token = read_kimi_refresh_token()?;
+    let refreshed = run_curl(&[
+        "-sS",
+        "--max-time",
+        "5",
+        "-X",
+        "POST",
+        KIMI_OAUTH_TOKEN_URL,
+        "--data-urlencode",
+        &format!("client_id={KIMI_OAUTH_CLIENT_ID}"),
+        "--data-urlencode",
+        "grant_type=refresh_token",
+        "--data-urlencode",
+        &format!("refresh_token={refresh_token}"),
+    ])?;
+
+    let access_token = refreshed
+        .get("access_token")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())?;
+    let rotated_refresh_token = refreshed
+        .get("refresh_token")
+        .and_then(|value| value.as_str())
+        .unwrap_or(&refresh_token)
+        .to_string();
+
+    let mut updated_credentials = current_credentials;
+    let object = updated_credentials.as_object_mut()?;
+    object.insert(
+        "access_token".into(),
+        serde_json::Value::String(access_token.clone()),
+    );
+    object.insert(
+        "refresh_token".into(),
+        serde_json::Value::String(rotated_refresh_token),
+    );
+    if let Some(expires_in) = refreshed.get("expires_in").and_then(|value| value.as_f64()) {
+        let expires_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .map(|duration| duration.as_secs_f64() + expires_in)?;
+        object.insert("expires_at".into(), serde_json::json!(expires_at));
+    }
+    if let Some(scope) = refreshed.get("scope").and_then(|value| value.as_str()) {
+        object.insert("scope".into(), serde_json::Value::String(scope.to_string()));
+    }
+    if let Some(token_type) = refreshed.get("token_type").and_then(|value| value.as_str()) {
+        object.insert(
+            "token_type".into(),
+            serde_json::Value::String(token_type.to_string()),
+        );
+    }
+
+    let _ = write_kimi_oauth_credentials(&updated_credentials);
+    Some(access_token)
+}
+
+fn read_kimi_base_url() -> String {
+    let raw = std::fs::read_to_string(Tool::Kimi.config_path()).ok();
+    raw.and_then(|raw| raw.parse::<toml::Value>().ok())
+        .and_then(|parsed| {
+            parsed
+                .get("providers")
+                .and_then(|value| value.get("managed:kimi-code"))
+                .and_then(|value| value.get("base_url"))
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string())
+        })
+        .unwrap_or_else(|| KIMI_DEFAULT_BASE_URL.to_string())
+}
+
+fn fetch_kimi_usage_with_access_token(access_token: &str) -> Option<serde_json::Value> {
+    let usage_url = format!("{}/usages", read_kimi_base_url().trim_end_matches('/'));
+    run_curl(&[
+        "-sS",
+        "--max-time",
+        "3",
+        "-H",
+        &format!("Authorization: Bearer {access_token}"),
+        usage_url.as_str(),
+    ])
+}
+
+fn fetch_kimi_usage_json() -> Option<serde_json::Value> {
+    let cache_path = kimi_usage_cache_path();
+    if cache_path.exists() && codex_usage_cache_is_fresh(&cache_path) {
+        if let Some(cached) = load_usage_json_from_cache(&cache_path, "kimi usage cache") {
+            if cached.get("usage").is_some() {
+                return Some(cached);
+            }
+        }
+    }
+
+    let mut access_token = read_kimi_access_token()?;
+    if kimi_access_token_needs_refresh() {
+        access_token = refresh_kimi_access_token()?;
+    }
+
+    let live = fetch_kimi_usage_with_access_token(&access_token)
+        .and_then(|value| {
+            if value.get("usage").is_some() {
+                Some(value)
+            } else {
+                None
+            }
+        })
+        .or_else(|| {
+            let refreshed = refresh_kimi_access_token()?;
+            fetch_kimi_usage_with_access_token(&refreshed)
+        });
+
+    if let Some(value) = live {
+        write_json_cache(&cache_path, &value);
+        return Some(value);
+    }
+
+    load_usage_json_from_cache(&cache_path, "kimi usage cache")
+}
+
+fn kimi_limit_label(item: &serde_json::Value, idx: usize) -> String {
+    let duration = item
+        .get("window")
+        .and_then(|value| value.get("duration"))
+        .and_then(|value| value.as_i64())
+        .or_else(|| item.get("duration").and_then(|value| value.as_i64()));
+    let time_unit = item
+        .get("window")
+        .and_then(|value| value.get("timeUnit"))
+        .and_then(|value| value.as_str())
+        .or_else(|| item.get("timeUnit").and_then(|value| value.as_str()))
+        .unwrap_or("");
+
+    match (duration, time_unit) {
+        (Some(duration), unit) if unit.contains("MINUTE") => {
+            if duration >= 60 && duration % 60 == 0 {
+                format!("{}h", duration / 60)
+            } else {
+                format!("{duration}m")
+            }
+        }
+        (Some(duration), unit) if unit.contains("HOUR") => format!("{duration}h"),
+        (Some(duration), unit) if unit.contains("DAY") => format!("{duration}d"),
+        _ => format!("Limit #{}", idx + 1),
+    }
+}
+
+fn format_kimi_usage_value(label: &str, detail: &serde_json::Value) -> Option<String> {
+    let limit = detail
+        .get("limit")
+        .and_then(|value| value.as_str().and_then(|value| value.parse::<f64>().ok()))
+        .or_else(|| detail.get("limit").and_then(|value| value.as_f64()))?;
+    let used = detail
+        .get("used")
+        .and_then(|value| value.as_str().and_then(|value| value.parse::<f64>().ok()))
+        .or_else(|| detail.get("used").and_then(|value| value.as_f64()))
+        .or_else(|| {
+            let remaining = detail
+                .get("remaining")
+                .and_then(|value| value.as_str().and_then(|value| value.parse::<f64>().ok()))
+                .or_else(|| detail.get("remaining").and_then(|value| value.as_f64()))?;
+            Some(limit - remaining)
+        })?;
+    let reset_in = detail
+        .get("resetTime")
+        .or_else(|| detail.get("reset_at"))
+        .or_else(|| detail.get("resetAt"))
+        .and_then(|value| value.as_str())
+        .and_then(format_reset_time_from_iso);
+    let used_percent = if limit > 0.0 {
+        (used / limit) * 100.0
+    } else {
+        100.0
+    };
+    Some(format_remaining_window_value(label, used_percent, reset_in))
+}
+
+fn parse_kimi_usage_snapshot(data: &serde_json::Value) -> Option<KimiUsageSnapshot> {
+    let weekly_value = data
+        .get("usage")
+        .and_then(|usage| format_kimi_usage_value("7d", usage));
+    let current_value = data
+        .get("limits")
+        .and_then(|value| value.as_array())
+        .and_then(|limits| {
+            limits.iter().enumerate().find_map(|(idx, item)| {
+                let label = kimi_limit_label(item, idx);
+                let detail = item.get("detail").unwrap_or(item);
+                if label == "5h" || label == "300m" {
+                    format_kimi_usage_value("5h", detail)
+                } else {
+                    format_kimi_usage_value(&label, detail)
+                }
+            })
+        });
+
+    let summary = match (current_value, weekly_value) {
+        (Some(current), Some(weekly)) => Some(format!("{current}  |  {weekly}")),
+        (Some(current), None) => Some(current),
+        (None, Some(weekly)) => Some(weekly),
+        (None, None) => None,
+    };
+
+    summary.as_ref()?;
+    Some(KimiUsageSnapshot { summary })
+}
+
+fn load_kimi_usage_snapshot() -> Option<KimiUsageSnapshot> {
+    let data = fetch_kimi_usage_json()?;
+    parse_kimi_usage_snapshot(&data)
 }
 
 fn read_gh_auth_token() -> Option<String> {
@@ -2993,6 +3274,10 @@ impl App {
         if let Err(e) = std::fs::remove_file(&copilot_usage_cache) {
             log::trace!("Could not remove copilot usage cache: {}", e);
         }
+        let kimi_usage_cache = kimi_usage_cache_path();
+        if let Err(e) = std::fs::remove_file(&kimi_usage_cache) {
+            log::trace!("Could not remove kimi usage cache: {}", e);
+        }
 
         match fetch_models_dev_json() {
             Some(_) => {
@@ -3855,6 +4140,19 @@ mod tests {
     }
 
     #[test]
+    fn summarize_kimi_prefers_usage_only() {
+        assert_eq!(
+            summarize_tool_fields(
+                Tool::Kimi,
+                true,
+                &[],
+                Some("5h remain 94% · reset 14m  |  7d remain 67% · reset 4d11h")
+            ),
+            Some("5h remain 94% · reset 14m  |  7d remain 67% · reset 4d11h".into())
+        );
+    }
+
+    #[test]
     fn claude_usage_snapshot_shows_reauth_required_for_invalid_refresh_state() {
         let parsed = serde_json::json!({
             "type": "error",
@@ -3960,6 +4258,37 @@ provider = "managed:kimi-code"
         assert!(updated.contains("default_model = \"kimi-code/new-model\""));
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn kimi_usage_snapshot_formats_current_and_weekly_windows() {
+        let parsed = serde_json::json!({
+            "usage": {
+                "limit": "100",
+                "used": "33",
+                "remaining": "67",
+                "resetTime": "2100-03-12T14:43:16.853067Z"
+            },
+            "limits": [
+                {
+                    "window": {
+                        "duration": 300,
+                        "timeUnit": "TIME_UNIT_MINUTE"
+                    },
+                    "detail": {
+                        "limit": "100",
+                        "used": "6",
+                        "remaining": "94",
+                        "resetTime": "2100-03-08T03:43:16.853067Z"
+                    }
+                }
+            ]
+        });
+
+        let snapshot = parse_kimi_usage_snapshot(&parsed).expect("snapshot");
+        let summary = snapshot.summary.expect("summary");
+        assert!(summary.starts_with("5h remain 94% · reset "));
+        assert!(summary.contains("  |  7d remain 67% · reset "));
     }
 
     #[test]
