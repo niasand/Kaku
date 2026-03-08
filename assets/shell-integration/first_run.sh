@@ -4,7 +4,6 @@
 
 set -euo pipefail
 
-CURRENT_CONFIG_VERSION=12
 CONFIG_DIR="$HOME/.config/kaku"
 STATE_FILE="$CONFIG_DIR/state.json"
 LEGACY_VERSION_FILE="$CONFIG_DIR/.kaku_config_version"
@@ -18,6 +17,8 @@ if [[ ! -f "$COMMON_SCRIPT" ]]; then
 fi
 # shellcheck source=state_common.sh
 source "$COMMON_SCRIPT"
+
+CURRENT_CONFIG_VERSION="$(read_bundled_config_version "$SCRIPT_DIR")"
 
 # Always persist config version at script exit to avoid repeated onboarding loops
 # when optional setup steps fail on user machines.

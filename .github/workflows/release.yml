@@ -99,6 +99,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          ./scripts/check_config_release_readiness.sh
           cargo check --locked -p kaku -p kaku-gui
           cargo nextest run --locked -E 'not test(shapecache::test::ligatures_jetbrains)'
           cargo nextest run --locked -p wezterm-escape-parser

@@ -2999,7 +2999,32 @@ wezterm.on('gui-startup', function(cmd)
   runtime_cwd_warmup_until_secs = now_secs() + runtime_cwd_startup_grace_secs
 
   local home = os.getenv("HOME")
-  local current_version = 12  -- Update this when config changes
+  local function read_current_config_version()
+    local candidates = {
+      wezterm.executable_dir:gsub("MacOS/?$", "Resources") .. "/config_version.txt",
+      wezterm.executable_dir .. "/../../assets/shell-integration/config_version.txt",
+    }
+
+    for _, path in ipairs(candidates) do
+      local version_file = io.open(path, "r")
+      if version_file then
+        local raw = version_file:read("*all")
+        version_file:close()
+
+        if raw then
+          local version = tonumber(raw:match("%d+"))
+          if version then
+            return version
+          end
+        end
+      end
+    end
+
+    wezterm.log_error("Failed to resolve bundled config version; falling back to v12")
+    return 12
+  end
+
+  local current_version = read_current_config_version()
 
   local state_file = home .. "/.config/kaku/state.json"
   local is_first_run = false

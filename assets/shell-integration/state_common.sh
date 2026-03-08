@@ -1,5 +1,49 @@
 # Shared shell state helpers for first-run and config updates.
 
+read_bundled_config_version() {
+	local script_dir="$1"
+	local version_file="$script_dir/config_version.txt"
+
+	if [[ ! -f "$version_file" ]]; then
+		echo "Error: missing bundled config version file: $version_file" >&2
+		return 1
+	fi
+
+	local version
+	version="$(tr -d '[:space:]' < "$version_file" || true)"
+	if [[ "$version" =~ ^[0-9]+$ ]]; then
+		printf '%s\n' "$version"
+		return 0
+	fi
+
+	echo "Error: invalid bundled config version in $version_file" >&2
+	return 1
+}
+
+print_config_update_highlights() {
+	local script_dir="$1"
+	local target_version="$2"
+	local highlights_file="$script_dir/config_update_highlights.tsv"
+	local found=1
+
+	if [[ ! -f "$highlights_file" ]]; then
+		return 1
+	fi
+
+	while IFS=$'\t' read -r version highlight; do
+		if [[ -z "${version:-}" || "$version" == \#* || -z "${highlight:-}" ]]; then
+			continue
+		fi
+
+		if [[ "$version" == "$target_version" ]]; then
+			printf '  • %s\n' "$highlight"
+			found=0
+		fi
+	done < "$highlights_file"
+
+	return "$found"
+}
+
 read_config_version() {
 	if [[ ! -f "$STATE_FILE" ]]; then
 		printf '%s\n' "0"

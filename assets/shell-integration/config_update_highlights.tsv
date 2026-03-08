@@ -1,0 +1,12 @@
+11	Shell text editing: Cmd+A select all, Shift+Arrow selection, ESC to cancel
+11	AI error fixer: auto-suggests fixes on failure, Cmd+Shift+E to apply
+11	Type y to launch Yazi, cd+Tab falls back to zsh-z history
+11	Plugins already loaded by your config are no longer duplicated
+11	Fixed: delete key after Chinese IME, terminal type for sudo+nano
+12	Shell text editing: Cmd+A select all, Shift+Arrow selection, ESC to cancel
+12	AI error fixer: auto-suggests fixes on failure, Cmd+Shift+E to apply
+12	Type y to launch Yazi, cd+Tab falls back to zsh-z history
+12	Plugins already loaded by your config are no longer duplicated
+12	Fixed: delete key after Chinese IME, terminal type for sudo+nano
+12	Fixed: yazi alias conflict with existing shell aliases
+12	Fixed: SSH sessions now use xterm-256color for better remote compatibility
