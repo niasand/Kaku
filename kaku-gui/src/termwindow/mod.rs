@@ -880,7 +880,17 @@ impl TermWindow {
         log::trace!("Setting focus to {:?}", focused);
         self.focused = if focused { Some(Instant::now()) } else { None };
         self.quad_generation += 1;
+        let prior_border = self.get_os_border();
         self.load_os_parameters();
+        let border_changed = if focused {
+            let new_border = self.get_os_border();
+            new_border.top != prior_border.top
+                || new_border.left != prior_border.left
+                || new_border.bottom != prior_border.bottom
+                || new_border.right != prior_border.right
+        } else {
+            false
+        };
 
         if let Some(modal) = self.get_modal() {
             modal.focus_changed(focused, self);
@@ -899,6 +909,14 @@ impl TermWindow {
 
         // Reset the cursor blink phase
         self.prev_cursor.bump();
+
+        if border_changed {
+            // Re-apply layout when macOS updates fullscreen/notch border metrics
+            // while the window is off-screen; otherwise the cached terminal
+            // dimensions can crowd the tab bar until the next fullscreen toggle.
+            let dimensions = self.dimensions;
+            self.apply_dimensions(&dimensions, None, window);
+        }
 
         // force cursor to be repainted
         window.invalidate();
