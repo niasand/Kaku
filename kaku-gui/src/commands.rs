@@ -1046,7 +1046,15 @@ fn label_string(action: &KeyAssignment, candidate: String) -> String {
 /// of metadata that is useful in the command palette/menubar context.
 /// This function will be called for the result of compute_default_actions(),
 /// but can also be used to describe user-provided commands
+pub(crate) fn is_internal_emit_event_name(name: &str) -> bool {
+    name.starts_with("user-defined-")
+}
+
 pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<CommandDef> {
+    if matches!(action, EmitEvent(name) if is_internal_emit_event_name(name)) {
+        return None;
+    }
+
     Some(match action {
         PasteFrom(ClipboardPasteSource::PrimarySelection) => CommandDef {
             brief: "Paste primary selection".into(),
@@ -1503,6 +1511,15 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
                     brief: "AI Config".into(),
                     doc: "Open AI configuration".into(),
                     keys: vec![(Modifiers::SUPER.union(Modifiers::SHIFT), "a".into())],
+                    args: &[ArgType::ActiveWindow],
+                    menubar: &["Shell"],
+                    icon: None,
+                }
+            } else if name == "kaku-ai-apply-last-fix" {
+                CommandDef {
+                    brief: "Apply Last AI Fix".into(),
+                    doc: "Apply the latest Kaku Assistant suggestion for the active pane".into(),
+                    keys: vec![(Modifiers::SUPER.union(Modifiers::SHIFT), "e".into())],
                     args: &[ArgType::ActiveWindow],
                     menubar: &["Shell"],
                     icon: None,
