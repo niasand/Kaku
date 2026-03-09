@@ -85,10 +85,10 @@ fn run_app(
                     if let Err(e) = app.save_if_dirty() {
                         return (Err(e), app.has_saved);
                     }
-                    disable_raw_mode().ok();
-                    terminal.clear().ok();
                     let config_path = app.config_path();
-                    if let Err(e) = open_config_in_editor(&config_path) {
+                    if let Err(e) =
+                        with_terminal_suspended(terminal, || open_config_in_editor(&config_path))
+                    {
                         return (Err(e), app.has_saved);
                     }
                     return (Ok(()), app.has_saved);
@@ -147,6 +147,34 @@ fn run_app(
             },
         }
     }
+}
+
+fn with_terminal_suspended<F>(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    func: F,
+) -> anyhow::Result<()>
+where
+    F: FnOnce() -> anyhow::Result<()>,
+{
+    disable_raw_mode().context("disable raw mode")?;
+    let mut stdout = io::stdout();
+    stdout
+        .execute(LeaveAlternateScreen)
+        .context("leave alternate screen")?;
+
+    let action_result = func();
+
+    let restore_result = (|| -> anyhow::Result<()> {
+        enable_raw_mode().context("enable raw mode")?;
+        let mut stdout = io::stdout();
+        stdout
+            .execute(EnterAlternateScreen)
+            .context("enter alternate screen")?;
+        terminal.clear().context("clear terminal")?;
+        Ok(())
+    })();
+
+    action_result.and(restore_result)
 }
 
 pub(crate) fn ensure_editable_config_exists(config_path: Option<&Path>) -> anyhow::Result<PathBuf> {

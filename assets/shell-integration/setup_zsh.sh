@@ -95,8 +95,24 @@ backup_zshrc_once() {
 	fi
 }
 
+default_kaku_config_path() {
+	if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
+		printf '%s\n' "${XDG_CONFIG_HOME}/kaku/kaku.lua"
+	else
+		printf '%s\n' "${HOME}/.config/kaku/kaku.lua"
+	fi
+}
+
+active_kaku_config_path() {
+	if [[ -n "${KAKU_CONFIG_FILE:-}" ]]; then
+		printf '%s\n' "${KAKU_CONFIG_FILE}"
+	else
+		default_kaku_config_path
+	fi
+}
+
 current_kaku_yazi_flavor() {
-	resolve_kaku_flavor_from_config "$HOME/.config/kaku/kaku.lua"
+	resolve_kaku_flavor_from_config "$(active_kaku_config_path)"
 }
 
 kaku_yazi_theme_block() {
@@ -203,7 +219,6 @@ install_yazi_wrapper() {
 set -euo pipefail
 
 YAZI_THEME_FILE="${HOME}/.config/yazi/theme.toml"
-KAKU_CONFIG_FILE="${HOME}/.config/kaku/kaku.lua"
 MARKER_START="# ===== Kaku Yazi Flavor (managed) ====="
 MARKER_END="# ===== End Kaku Yazi Flavor (managed) ====="
 WRAPPER_PATH="${BASH_SOURCE[0]}"
@@ -219,6 +234,22 @@ system_kaku_flavor() {
 		fi
 	fi
 	printf '%s\n' "$flavor"
+}
+
+default_kaku_config_path() {
+	if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
+		printf '%s\n' "${XDG_CONFIG_HOME}/kaku/kaku.lua"
+	else
+		printf '%s\n' "${HOME}/.config/kaku/kaku.lua"
+	fi
+}
+
+active_kaku_config_path() {
+	if [[ -n "${KAKU_CONFIG_FILE:-}" ]]; then
+		printf '%s\n' "${KAKU_CONFIG_FILE}"
+	else
+		default_kaku_config_path
+	fi
 }
 
 resolve_kaku_flavor_from_config() {
@@ -260,7 +291,7 @@ resolve_kaku_flavor_from_config() {
 }
 
 current_flavor() {
-	resolve_kaku_flavor_from_config "$KAKU_CONFIG_FILE"
+	resolve_kaku_flavor_from_config "$(active_kaku_config_path)"
 }
 
 managed_block() {
