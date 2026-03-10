@@ -28,7 +28,7 @@ pub fn run(config_path: PathBuf) -> anyhow::Result<()> {
     let mut app = App::new(config_path);
     app.load_config();
 
-    let (result, should_signal) = run_app(&mut terminal, &mut app);
+    let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode().context("disable raw mode")?;
     terminal
@@ -36,26 +36,21 @@ pub fn run(config_path: PathBuf) -> anyhow::Result<()> {
         .execute(LeaveAlternateScreen)
         .context("leave alternate screen")?;
 
-    // Signal after leaving alternate screen so the OSC reaches the main terminal.
-    if should_signal {
-        signal_config_changed();
-    }
-
     result
 }
 
 fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
-) -> (anyhow::Result<()>, bool) {
+) -> anyhow::Result<()> {
     loop {
         if let Err(e) = terminal.draw(|f| ui::ui(f, app)) {
-            return (Err(e.into()), false);
+            return Err(e.into());
         }
 
         let event = match event::read() {
             Ok(e) => e,
-            Err(e) => return (Err(e.into()), false),
+            Err(e) => return Err(e.into()),
         };
 
         let Event::Key(key) = event else { continue };
@@ -66,9 +61,9 @@ fn run_app(
         if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
             app.finalize_active_input();
             if let Err(e) = app.save_if_dirty() {
-                return (Err(e), app.has_saved);
+                return Err(e);
             }
-            return (Ok(()), app.has_saved);
+            return Ok(());
         }
 
         match app.mode {
@@ -76,22 +71,22 @@ fn run_app(
                 // Q / ESC: exit (auto-save if dirty, signal if any save occurred)
                 KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
                     if let Err(e) = app.save_if_dirty() {
-                        return (Err(e), app.has_saved);
+                        return Err(e);
                     }
-                    return (Ok(()), app.has_saved);
+                    return Ok(());
                 }
                 // E: open in editor (save first if dirty)
                 KeyCode::Char('e') | KeyCode::Char('E') => {
                     if let Err(e) = app.save_if_dirty() {
-                        return (Err(e), app.has_saved);
+                        return Err(e);
                     }
                     let config_path = app.config_path();
                     if let Err(e) =
                         with_terminal_suspended(terminal, || open_config_in_editor(&config_path))
                     {
-                        return (Err(e), app.has_saved);
+                        return Err(e);
                     }
-                    return (Ok(()), app.has_saved);
+                    return Ok(());
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
                     app.move_up();
@@ -99,7 +94,7 @@ fn run_app(
                 KeyCode::Down | KeyCode::Char('j') => {
                     app.move_down();
                 }
-                KeyCode::Enter => {
+                KeyCode::Enter | KeyCode::Char(' ') => {
                     app.start_edit();
                 }
                 _ => {}
@@ -132,7 +127,13 @@ fn run_app(
             },
             Mode::Selecting => match key.code {
                 KeyCode::Esc => {
-                    app.cancel_select();
+                    // ESC in selector = confirm the highlighted option and exit,
+                    // matching the "ESC saves and exits" mental model of Normal mode.
+                    app.confirm_select();
+                    if let Err(e) = app.save_if_dirty() {
+                        return Err(e);
+                    }
+                    return Ok(());
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
                     app.select_up();
@@ -722,11 +723,17 @@ impl App {
     }
 
     /// Save config if there are pending changes. Returns Err on save failure.
+    /// Also signals kaku-gui immediately after a successful write so it reloads
+    /// without waiting for the file-watcher grace period.
     fn save_if_dirty(&mut self) -> anyhow::Result<()> {
         if self.dirty {
             self.save_config()?;
             self.dirty = false;
             self.has_saved = true;
+            // Signal immediately while the pane's stdout is still being read by
+            // kaku-gui. Sending after LeaveAlternateScreen is unreliable because
+            // the terminal may have already closed the child's output stream.
+            signal_config_changed();
         }
         Ok(())
     }
@@ -782,10 +789,6 @@ impl App {
         self.edit_buffer.clear();
     }
 
-    fn cancel_select(&mut self) {
-        self.mode = Mode::Normal;
-    }
-
     fn select_up(&mut self) {
         if self.select_index > 0 {
             self.select_index -= 1;
@@ -823,6 +826,12 @@ impl App {
 
     fn confirm_select(&mut self) {
         let selected_option = self.fields[self.selected].options[self.select_index];
+        let current_value = self.display_value(&self.fields[self.selected]).to_string();
+        if current_value == selected_option {
+            self.mode = Mode::Normal;
+            return;
+        }
+
         self.fields[self.selected].value = selected_option.to_string();
         // Same: explicit user choice overrides the skip_write protection.
         self.fields[self.selected].skip_write = false;
@@ -983,7 +992,13 @@ impl App {
             i += 1;
         }
 
-        result.join("\n")
+        // POSIX: text files end with a newline. join() strips the trailing one
+        // that lines() removed, so we restore it here.
+        if result.is_empty() {
+            String::new()
+        } else {
+            result.join("\n") + "\n"
+        }
     }
 
     fn count_brace_depth(s: &str) -> i32 {
@@ -1075,7 +1090,13 @@ impl App {
             }
         }
 
-        result.join("\n")
+        // POSIX: text files end with a newline. join() strips the trailing one
+        // that lines() removed, so we restore it here.
+        if result.is_empty() {
+            String::new()
+        } else {
+            result.join("\n") + "\n"
+        }
     }
 
     fn to_lua_value(&self, field: &ConfigField) -> String {
@@ -1191,7 +1212,7 @@ fn signal_config_changed() {
 
 #[cfg(test)]
 mod tests {
-    use super::{ensure_editable_config_exists, App, KAKU_AUTO_COLOR_SCHEME_EXPR};
+    use super::{ensure_editable_config_exists, App, Mode, KAKU_AUTO_COLOR_SCHEME_EXPR};
     use std::path::PathBuf;
     use tempfile::tempdir;
 
@@ -1359,6 +1380,40 @@ mod tests {
     }
 
     #[test]
+    fn start_edit_toggles_binary_option_fields() {
+        let mut app = test_app();
+        let idx = app
+            .fields
+            .iter()
+            .position(|f| f.lua_key == "copy_on_select")
+            .expect("copy_on_select field to exist");
+        app.selected = idx;
+
+        app.start_edit();
+
+        assert_eq!(app.fields[idx].value, "Off");
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(app.dirty);
+    }
+
+    #[test]
+    fn start_edit_opens_selector_for_multi_option_fields() {
+        let mut app = test_app();
+        let idx = app
+            .fields
+            .iter()
+            .position(|f| f.lua_key == "color_scheme")
+            .expect("color_scheme field to exist");
+        app.selected = idx;
+
+        app.start_edit();
+
+        assert!(matches!(app.mode, Mode::Selecting));
+        assert_eq!(app.select_index, 0);
+        assert!(!app.dirty);
+    }
+
+    #[test]
     fn dynamic_color_scheme_expression_is_not_parsed_as_writable_value() {
         let content =
             "config.color_scheme = appearance == 'Dark' and 'Kaku Dark' or 'Kaku Light'\n";
@@ -1395,5 +1450,87 @@ mod tests {
         assert!(config_path.is_file());
         let content = std::fs::read_to_string(&config_path).expect("read config");
         assert!(content.contains("local wezterm = require 'wezterm'"));
+    }
+
+    #[test]
+    fn selecting_esc_confirms_and_marks_dirty() {
+        let mut app = test_app();
+        let idx = app
+            .fields
+            .iter()
+            .position(|f| f.lua_key == "color_scheme")
+            .expect("color_scheme field to exist");
+        app.selected = idx;
+
+        // Enter Selecting mode and move to a different option
+        app.start_edit();
+        assert!(matches!(app.mode, Mode::Selecting));
+        app.select_down(); // move off default (index 0 → 1)
+
+        // Simulate ESC: confirm_select() is called, which should set dirty
+        app.confirm_select();
+
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(
+            app.dirty,
+            "ESC in Selecting mode should commit the selection"
+        );
+        assert_eq!(app.fields[idx].value, "Kaku Light");
+    }
+
+    #[test]
+    fn selecting_esc_without_value_change_does_not_mark_dirty() {
+        let mut app = test_app();
+        let idx = app
+            .fields
+            .iter()
+            .position(|f| f.lua_key == "color_scheme")
+            .expect("color_scheme field to exist");
+        app.selected = idx;
+
+        app.start_edit();
+        assert!(matches!(app.mode, Mode::Selecting));
+
+        app.confirm_select();
+
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(
+            !app.dirty,
+            "confirming the existing selection should not mark the app dirty"
+        );
+        assert_eq!(app.fields[idx].value, "");
+    }
+
+    #[test]
+    fn save_config_produces_trailing_newline() {
+        let dir = tempdir().expect("tempdir");
+        let config_path = dir.path().join("kaku.lua");
+        // Write a minimal valid config so save_config has something to update.
+        std::fs::write(
+            &config_path,
+            "local wezterm = require 'wezterm'\nlocal config = {}\nreturn config\n",
+        )
+        .expect("write config");
+
+        let mut app = App::new(config_path.clone());
+        app.load_config();
+
+        // Toggle copy_on_select (a binary field) to make the state dirty.
+        let idx = app
+            .fields
+            .iter()
+            .position(|f| f.lua_key == "copy_on_select")
+            .expect("copy_on_select field to exist");
+        app.selected = idx;
+        app.start_edit(); // toggles On → Off, sets dirty=true
+
+        app.save_config().expect("save_config");
+
+        let written = std::fs::read_to_string(&config_path).expect("read back");
+        assert!(
+            written.ends_with('\n'),
+            "saved config must end with a newline, got: {:?}",
+            &written[written.len().saturating_sub(10)..]
+        );
     }
 }

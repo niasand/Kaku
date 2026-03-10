@@ -136,7 +136,22 @@ fn builtin_kaku_theme(config: &ConfigHandle) -> Option<ThemePalette> {
     let light_cursor = rgb("#343331");
 
     match config.color_scheme.as_deref() {
-        Some("Kaku Dark") | Some("Kaku Theme") => return Some(dark),
+        Some("Kaku Dark") | Some("Kaku Theme") => {
+            // The color_scheme field might hold "Kaku Dark" either because:
+            //   (a) the user explicitly chose Kaku Dark, OR
+            //   (b) the user chose Auto, but the TUI process evaluated the Lua
+            //       expression with wezterm.gui=nil, which always falls back to
+            //       'Kaku Dark'.
+            // Disambiguate by checking the raw config file.
+            if config_file_has_auto_color_scheme(config) {
+                if is_macos_dark_mode() {
+                    return Some(dark);
+                } else {
+                    return Some(light);
+                }
+            }
+            return Some(dark);
+        }
         Some("Kaku Light") => return Some(light),
         _ => {}
     }
@@ -149,6 +164,92 @@ fn builtin_kaku_theme(config: &ConfigHandle) -> Option<ThemePalette> {
     } else {
         None
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ColorSchemeSelection {
+    Light,
+    Dark,
+    Auto,
+    Other,
+}
+
+fn color_scheme_assignment_rhs(trimmed_line: &str) -> Option<&str> {
+    let rest = trimmed_line.strip_prefix("config.color_scheme")?;
+    let rest = rest.trim_start();
+    let rhs = rest.strip_prefix('=')?;
+    Some(rhs.trim_start())
+}
+
+fn rhs_starts_with_quoted_literal(rhs: &str, value: &str) -> bool {
+    let single = format!("'{value}'");
+    let double = format!("\"{value}\"");
+    rhs.starts_with(&single) || rhs.starts_with(&double)
+}
+
+fn parse_color_scheme_selection_line(line: &str) -> Option<ColorSchemeSelection> {
+    let trimmed = line.trim();
+    if trimmed.starts_with("--") {
+        return None;
+    }
+
+    let rhs = color_scheme_assignment_rhs(trimmed)?;
+    if rhs_starts_with_quoted_literal(rhs, "Kaku Light") {
+        return Some(ColorSchemeSelection::Light);
+    }
+    if rhs_starts_with_quoted_literal(rhs, "Kaku Dark")
+        || rhs_starts_with_quoted_literal(rhs, "Kaku Theme")
+    {
+        return Some(ColorSchemeSelection::Dark);
+    }
+    if rhs.contains("get_appearance") {
+        return Some(ColorSchemeSelection::Auto);
+    }
+    Some(ColorSchemeSelection::Other)
+}
+
+fn color_scheme_selection_from_content(content: &str) -> Option<ColorSchemeSelection> {
+    content
+        .lines()
+        .filter_map(parse_color_scheme_selection_line)
+        .last()
+}
+
+/// Returns true when the user config explicitly assigns `config.color_scheme`
+/// to an appearance-based expression (Auto), using the same line-oriented
+/// assignment semantics as `kaku.lua`.
+fn config_file_has_auto_color_scheme(_config: &ConfigHandle) -> bool {
+    let path = config::effective_config_file_path();
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    color_scheme_selection_from_content(&content) == Some(ColorSchemeSelection::Auto)
+}
+
+/// Detects whether macOS is currently running in Dark Mode by reading the
+/// `AppleInterfaceStyle` value from the global user defaults.
+/// Returns true for Dark, false for Light (or when detection is unavailable).
+#[cfg(target_os = "macos")]
+fn is_macos_dark_mode() -> bool {
+    use std::process::Command;
+    // `defaults read -g AppleInterfaceStyle` prints "Dark" in dark mode and
+    // exits with a non-zero code (key not found) in light mode.
+    match Command::new("defaults")
+        .args(["read", "-g", "AppleInterfaceStyle"])
+        .output()
+    {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            stdout.trim().eq_ignore_ascii_case("dark")
+        }
+        Err(_) => false, // if the command fails, fall back to light/false
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_macos_dark_mode() -> bool {
+    false
 }
 
 fn palette_from_config(config: &ConfigHandle) -> ThemePalette {
@@ -221,4 +322,82 @@ fn current_theme() -> CachedTheme {
 
 pub fn current_theme_palette() -> ThemePalette {
     current_theme().palette
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        color_scheme_selection_from_content, parse_color_scheme_selection_line,
+        ColorSchemeSelection,
+    };
+
+    #[test]
+    fn ignores_non_assignment_lines() {
+        assert_eq!(
+            parse_color_scheme_selection_line("local x = 'get_appearance'"),
+            None
+        );
+    }
+
+    #[test]
+    fn ignores_comment_lines() {
+        assert_eq!(
+            parse_color_scheme_selection_line(
+                "-- config.color_scheme = (wezterm.gui and wezterm.gui.get_appearance())"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn detects_light_dark_and_auto_assignments() {
+        assert_eq!(
+            parse_color_scheme_selection_line("config.color_scheme = 'Kaku Light'"),
+            Some(ColorSchemeSelection::Light)
+        );
+        assert_eq!(
+            parse_color_scheme_selection_line("config.color_scheme = \"Kaku Dark\""),
+            Some(ColorSchemeSelection::Dark)
+        );
+        assert_eq!(
+            parse_color_scheme_selection_line(
+                "config.color_scheme = (wezterm.gui and wezterm.gui.get_appearance() or 'Dark'):find('Dark') and 'Kaku Dark' or 'Kaku Light'"
+            ),
+            Some(ColorSchemeSelection::Auto)
+        );
+    }
+
+    #[test]
+    fn marks_unknown_assignment_as_other() {
+        assert_eq!(
+            parse_color_scheme_selection_line("config.color_scheme = some_runtime_value"),
+            Some(ColorSchemeSelection::Other)
+        );
+    }
+
+    #[test]
+    fn last_color_scheme_assignment_wins() {
+        let content = "\
+config.color_scheme = (wezterm.gui and wezterm.gui.get_appearance() or 'Dark'):find('Dark') and 'Kaku Dark' or 'Kaku Light'
+config.color_scheme = 'Kaku Light'
+";
+
+        assert_eq!(
+            color_scheme_selection_from_content(content),
+            Some(ColorSchemeSelection::Light)
+        );
+    }
+
+    #[test]
+    fn last_unknown_assignment_overrides_earlier_auto() {
+        let content = "\
+config.color_scheme = (wezterm.gui and wezterm.gui.get_appearance() or 'Dark'):find('Dark') and 'Kaku Dark' or 'Kaku Light'
+config.color_scheme = some_runtime_value
+";
+
+        assert_eq!(
+            color_scheme_selection_from_content(content),
+            Some(ColorSchemeSelection::Other)
+        );
+    }
 }

@@ -14,6 +14,45 @@ enum MainLayoutMode {
     Compact,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct FooterCopy {
+    primary_key: &'static str,
+    primary_long: &'static str,
+    primary_short: &'static str,
+    secondary_key: Option<&'static str>,
+    secondary_long: Option<&'static str>,
+    secondary_short: Option<&'static str>,
+}
+
+fn footer_copy(mode: Mode) -> FooterCopy {
+    match mode {
+        Mode::Normal => FooterCopy {
+            primary_key: "ESC",
+            primary_long: " save and apply changes",
+            primary_short: " apply",
+            secondary_key: Some("E"),
+            secondary_long: Some(" open full config"),
+            secondary_short: Some(" config"),
+        },
+        Mode::Selecting => FooterCopy {
+            primary_key: "Enter",
+            primary_long: " apply current change",
+            primary_short: " apply",
+            secondary_key: Some("ESC"),
+            secondary_long: Some(" apply & exit"),
+            secondary_short: Some(" apply"),
+        },
+        Mode::Editing => FooterCopy {
+            primary_key: "Enter",
+            primary_long: " apply current change",
+            primary_short: " apply",
+            secondary_key: Some("ESC"),
+            secondary_long: Some(" cancel edit"),
+            secondary_short: Some(" cancel"),
+        },
+    }
+}
+
 pub(super) fn ui(frame: &mut ratatui::Frame, app: &mut App) {
     let full = frame.area();
     if full.width < 2 || full.height < 2 {
@@ -37,7 +76,7 @@ pub(super) fn ui(frame: &mut ratatui::Frame, app: &mut App) {
             let chunks =
                 Layout::vertical([Constraint::Length(2), Constraint::Length(1)]).split(area);
             render_header(frame, chunks[0]);
-            render_footer(frame, chunks[1]);
+            render_footer(frame, chunks[1], app.mode);
         }
         MainLayoutMode::Expanded => {
             let chunks = Layout::vertical([
@@ -51,7 +90,7 @@ pub(super) fn ui(frame: &mut ratatui::Frame, app: &mut App) {
 
             render_header(frame, chunks[0]);
             render_fields(frame, chunks[1], app);
-            render_footer(frame, chunks[4]);
+            render_footer(frame, chunks[4], app.mode);
         }
         MainLayoutMode::Compact => {
             let chunks = Layout::vertical([
@@ -64,7 +103,7 @@ pub(super) fn ui(frame: &mut ratatui::Frame, app: &mut App) {
 
             render_header(frame, chunks[0]);
             render_fields(frame, chunks[1], app);
-            render_footer(frame, chunks[3]);
+            render_footer(frame, chunks[3], app.mode);
         }
     }
 
@@ -203,30 +242,51 @@ fn render_fields(frame: &mut ratatui::Frame, area: Rect, app: &App) {
     frame.render_stateful_widget(list, area, &mut state);
 }
 
-fn render_footer(frame: &mut ratatui::Frame, area: Rect) {
+fn render_footer(frame: &mut ratatui::Frame, area: Rect, mode: Mode) {
+    let copy = footer_copy(mode);
     let line = if area.width >= 44 {
         Line::from(vec![
             Span::styled("  ", Style::default()),
-            Span::styled("ESC", Style::default().fg(primary())),
-            Span::styled(" save and apply changes", Style::default().fg(muted())),
-            Span::styled("  ·  ", Style::default().fg(muted())),
-            Span::styled("E", Style::default().fg(primary())),
-            Span::styled(" open full config", Style::default().fg(muted())),
+            Span::styled(copy.primary_key, Style::default().fg(primary())),
+            Span::styled(copy.primary_long, Style::default().fg(muted())),
+            if copy.secondary_key.is_some() || copy.secondary_long.is_some() {
+                Span::styled("  ·  ", Style::default().fg(muted()))
+            } else {
+                Span::raw("")
+            },
+            Span::styled(
+                copy.secondary_key.unwrap_or(""),
+                Style::default().fg(primary()),
+            ),
+            Span::styled(
+                copy.secondary_long.unwrap_or(""),
+                Style::default().fg(muted()),
+            ),
         ])
     } else if area.width >= 30 {
         Line::from(vec![
             Span::styled("  ", Style::default()),
-            Span::styled("ESC", Style::default().fg(primary())),
-            Span::styled(" apply", Style::default().fg(muted())),
-            Span::styled("  ·  ", Style::default().fg(muted())),
-            Span::styled("E", Style::default().fg(primary())),
-            Span::styled(" config", Style::default().fg(muted())),
+            Span::styled(copy.primary_key, Style::default().fg(primary())),
+            Span::styled(copy.primary_short, Style::default().fg(muted())),
+            if copy.secondary_key.is_some() || copy.secondary_short.is_some() {
+                Span::styled("  ·  ", Style::default().fg(muted()))
+            } else {
+                Span::raw("")
+            },
+            Span::styled(
+                copy.secondary_key.unwrap_or(""),
+                Style::default().fg(primary()),
+            ),
+            Span::styled(
+                copy.secondary_short.unwrap_or(""),
+                Style::default().fg(muted()),
+            ),
         ])
     } else {
         Line::from(vec![
             Span::styled("  ", Style::default()),
-            Span::styled("ESC", Style::default().fg(primary())),
-            Span::styled(" apply", Style::default().fg(muted())),
+            Span::styled(copy.primary_key, Style::default().fg(primary())),
+            Span::styled(copy.primary_short, Style::default().fg(muted())),
         ])
     };
 
@@ -265,7 +325,11 @@ fn render_selector(frame: &mut ratatui::Frame, area: Rect, app: &App) {
         .title(Line::from(vec![
             Span::styled(" Select: ", Style::default().fg(primary())),
             Span::styled(field.key, Style::default().fg(text_fg())),
-            Span::raw(" "),
+            Span::styled("  ", Style::default()),
+            Span::styled("Enter", Style::default().fg(primary())),
+            Span::styled(" / ", Style::default().fg(muted())),
+            Span::styled("Esc", Style::default().fg(primary())),
+            Span::styled(": Apply ", Style::default().fg(muted())),
         ]))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(primary()))
@@ -383,7 +447,8 @@ fn render_editor(frame: &mut ratatui::Frame, area: Rect, app: &App) {
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_main_layout, MainLayoutMode};
+    use super::{footer_copy, resolve_main_layout, FooterCopy, MainLayoutMode};
+    use crate::config_tui::Mode;
 
     #[test]
     fn keeps_spacer_in_compact_layout() {
@@ -400,5 +465,50 @@ mod tests {
     fn handles_tiny_terminal_heights() {
         assert_eq!(resolve_main_layout(2, 1), MainLayoutMode::HeaderOnly);
         assert_eq!(resolve_main_layout(3, 1), MainLayoutMode::HeaderAndFooter);
+    }
+
+    #[test]
+    fn normal_footer_keeps_escape_as_apply_shortcut() {
+        assert_eq!(
+            footer_copy(Mode::Normal),
+            FooterCopy {
+                primary_key: "ESC",
+                primary_long: " save and apply changes",
+                primary_short: " apply",
+                secondary_key: Some("E"),
+                secondary_long: Some(" open full config"),
+                secondary_short: Some(" config"),
+            }
+        );
+    }
+
+    #[test]
+    fn modal_footer_switches_escape_to_cancel() {
+        assert_eq!(
+            footer_copy(Mode::Selecting),
+            FooterCopy {
+                primary_key: "Enter",
+                primary_long: " apply current change",
+                primary_short: " apply",
+                secondary_key: Some("ESC"),
+                secondary_long: Some(" apply & exit"),
+                secondary_short: Some(" apply"),
+            }
+        );
+    }
+
+    #[test]
+    fn modal_footer_shows_cancel_for_editing() {
+        assert_eq!(
+            footer_copy(Mode::Editing),
+            FooterCopy {
+                primary_key: "Enter",
+                primary_long: " apply current change",
+                primary_short: " apply",
+                secondary_key: Some("ESC"),
+                secondary_long: Some(" cancel edit"),
+                secondary_short: Some(" cancel"),
+            }
+        );
     }
 }
