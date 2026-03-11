@@ -235,12 +235,15 @@ else
 	fi
 fi
 
-SIGN_ARGS=(
+BASE_SIGN_ARGS=(
 	--force
-	--deep
+	--sign "$SIGNING_IDENTITY"
+)
+
+RUNTIME_SIGN_ARGS=(
+	"${BASE_SIGN_ARGS[@]}"
 	--options runtime
 	--entitlements assets/macos/Kaku.entitlements
-	--sign "$SIGNING_IDENTITY"
 )
 
 if [[ "$SIGNING_IDENTITY" == "-" ]]; then
@@ -248,7 +251,6 @@ if [[ "$SIGNING_IDENTITY" == "-" ]]; then
 	if [[ -n "$BUNDLE_ID" ]]; then
 		# Keep designated requirement stable across local ad-hoc builds so macOS TCC
 		# does not treat each rebuilt app as a brand-new identity.
-		SIGN_ARGS+=("-r=designated => identifier \"$BUNDLE_ID\"")
 		echo "Ad-hoc signing with stable designated requirement: $BUNDLE_ID"
 	else
 		echo "Warning: CFBundleIdentifier not found. Falling back to default ad-hoc requirement."
@@ -259,7 +261,20 @@ touch "$APP_BUNDLE_OUT/Contents/Resources/terminal.icns"
 touch "$APP_BUNDLE_OUT/Contents/Info.plist"
 touch "$APP_BUNDLE_OUT"
 
-codesign "${SIGN_ARGS[@]}" "$APP_BUNDLE_OUT"
+while IFS= read -r -d '' dylib; do
+	codesign "${BASE_SIGN_ARGS[@]}" "$dylib"
+done < <(find "$APP_BUNDLE_OUT/Contents/Frameworks" -type f -name '*.dylib' -print0 | sort -z)
+
+for bin in "$APP_BUNDLE_OUT/Contents/MacOS/kaku" "$APP_BUNDLE_OUT/Contents/MacOS/kaku-gui"; do
+	codesign "${RUNTIME_SIGN_ARGS[@]}" "$bin"
+done
+
+APP_SIGN_ARGS=("${RUNTIME_SIGN_ARGS[@]}")
+if [[ "$SIGNING_IDENTITY" == "-" && -n "${BUNDLE_ID:-}" ]]; then
+	APP_SIGN_ARGS+=("-r=designated => identifier \"$BUNDLE_ID\"")
+fi
+
+codesign "${APP_SIGN_ARGS[@]}" "$APP_BUNDLE_OUT"
 
 if [[ "$APP_ONLY" == "1" ]]; then
 	echo "App bundle ready: $APP_BUNDLE_OUT"
