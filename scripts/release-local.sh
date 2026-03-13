@@ -133,7 +133,7 @@ gh release create "$TAG" \
 # ── Step 6: Upload assets ─────────────────────────────────────────────────────
 echo "[5/6] Uploading assets to GitHub Release..."
 
-# Calculate SHA256
+# Calculate DMG SHA256 (used by Homebrew tap dispatch)
 SHA256=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')
 
 # Create update zip for auto-updater
@@ -151,7 +151,7 @@ hdiutil detach "$MOUNT_POINT" -quiet
 # Create update zip
 UPDATE_ZIP="$OUT_DIR/kaku_for_update.zip"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$UPDATE_ZIP"
-echo "$SHA256" > "$UPDATE_ZIP.sha256"
+/usr/bin/shasum -a 256 "$UPDATE_ZIP" | awk '{print $1}' > "$UPDATE_ZIP.sha256"
 
 # Upload to GitHub
 gh release upload "$TAG" "$DMG_PATH" --clobber
