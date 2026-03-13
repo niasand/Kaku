@@ -174,13 +174,17 @@ fn run_kaku_subcommand_in_shell_new_window(subcommand: &str) {
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or_default();
+    // Use fallback_bin (absolute path) directly so we don't need a login shell
+    // to resolve PATH. The login shell (-l) was the main source of slowness here:
+    // it loads the user's full profile (zshrc, nvm, rbenv, plugins, etc.) before
+    // the update even starts. Since we have an absolute path, skip -l entirely.
     let command_str = if shell_name == "fish" {
         format!(
-            "kaku {subcommand}; or {fallback_bin} {subcommand}; printf '\\nPress Enter to close...\\n'; read -l dummy"
+            "{fallback_bin} {subcommand}; printf '\\nPress Enter to close...\\n'; read -l dummy"
         )
     } else {
         format!(
-            "kaku {subcommand} || {fallback_bin} {subcommand}; printf '\\nPress Enter to close...\\n'; read dummy"
+            "{fallback_bin} {subcommand}; printf '\\nPress Enter to close...\\n'; read dummy"
         )
     };
 
@@ -196,7 +200,7 @@ fn run_kaku_subcommand_in_shell_new_window(subcommand: &str) {
 
         let spawn_cmd = SpawnCommand {
             domain: SpawnTabDomain::DomainName("local".to_string()),
-            args: Some(vec![shell, "-l".to_string(), "-c".to_string(), command_str]),
+            args: Some(vec![shell, "-c".to_string(), command_str]),
             ..Default::default()
         };
 
