@@ -24,6 +24,7 @@
 - **Curated Shell Suite**: Built-in zsh plugins with optional CLI tools for prompt, diff, and navigation workflows.
 - **Fast & Lightweight**: 40% smaller binary, instant startup, lazy loading, stripped-down GPU-accelerated core.
 - **WezTerm-Compatible Config**: Use WezTerm's Lua config directly with full API compatibility and no migration.
+- **Polished Defaults**: Copy on select, clickable file paths, history peek from full-screen apps, pane input broadcast, and visual bell on background tab completion.
 
 ## Quick Start
 
@@ -62,20 +63,6 @@ Kaku comes with intuitive macOS-native shortcuts:
 | Smart Jump | `z <dir>` |
 | Smart Select | `z -l <dir>` |
 | Recent Dirs | `z -t` |
-
-### Intuitive Interactions
-
-- **Visual Bell**: A bell prefix appears on inactive tabs when background tasks finish. Optional Dock badge is controlled by `bell_dock_badge` (off by default), and the tab prefix can be toggled with `bell_tab_indicator`.
-- **File Path Hyperlinks**: Relative and home-based file paths in terminal output become clickable links.
-- **Active Pane**: A subtle dot highlights the currently focused pane during split-screen workflows.
-- **Global Hotkey**: Press `Cmd + Opt + Ctrl + K` anytime to float Kaku over your current workspace.
-- **Copy on Select**: Highlighting any text automatically copies it to your clipboard with a confirmation toast.
-- **Zoom Window**: Double-click the title bar or tab bar empty space to safely zoom or unzoom the window.
-- **Finder Integration**: Right-click folders in macOS Finder and deploy Kaku via Services, or drop multiple files directly onto the Kaku Dock icon.
-- **History Peek**: Scroll up while inside full-screen apps like `less` or `vim` to lift the screen and peek at your primary shell history without exiting.
-- **Tab Reordering**: Drag and drop tabs to reorder them in the tab bar.
-- **Close Confirmation**: Closing a tab or pane with active processes prompts for confirmation to prevent accidental data loss.
-- **Pane Input Broadcast**: Synchronize typing across multiple panes simultaneously. Enable broadcast mode from the pane context menu or via the `kaku` command. Overlay input is never broadcast by mistake.
 
 ## Configuration
 
