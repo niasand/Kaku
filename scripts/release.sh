@@ -16,6 +16,7 @@ set -euo pipefail
 #   KAKU_NOTARIZE_TEAM_ID    - Team ID for notarization
 #   KAKU_NOTARIZE_PASSWORD   - App-specific password for notarization
 #   HOMEBREW_TAP_TOKEN       - Optional: GitHub token for Homebrew tap (defaults to gh auth token)
+#   REQUIRE_HOMEBREW_TAP_UPDATE - Set to 0 to allow release to continue when tap update fails (default: 1)
 #   RUN_CLIPPY               - Set to 1 to also run clippy (default: 0)
 #   SKIP_TESTS               - Set to 1 to skip tests (default: 0)
 
@@ -30,6 +31,7 @@ RUN_CLIPPY="${RUN_CLIPPY:-0}"
 SKIP_TESTS="${SKIP_TESTS:-0}"
 GITHUB_REPO="${GITHUB_REPO:-tw93/Kaku}"
 HOMEBREW_TAP_REPO="${HOMEBREW_TAP_REPO:-tw93/homebrew-tap}"
+REQUIRE_HOMEBREW_TAP_UPDATE="${REQUIRE_HOMEBREW_TAP_UPDATE:-1}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -436,7 +438,10 @@ update_homebrew_tap() {
     fi
 
     if [[ -z "$token" ]]; then
-        log_info "No GitHub token available, skipping Homebrew tap update"
+        if [[ "$REQUIRE_HOMEBREW_TAP_UPDATE" == "1" ]]; then
+            die "No GitHub token available for Homebrew tap update"
+        fi
+        log_warn "No GitHub token available, skipping Homebrew tap update"
         return 0
     fi
 
@@ -455,6 +460,11 @@ update_homebrew_tap() {
         -f "client_payload[version]=$version" \
         -f "client_payload[sha256]=$dmg_sha256" 2>&1
     ); then
+        if [[ "$REQUIRE_HOMEBREW_TAP_UPDATE" == "1" ]]; then
+            log_warn "Failed to dispatch Homebrew tap update for ${HOMEBREW_TAP_REPO}"
+            log_warn "$dispatch_output"
+            die "Homebrew tap update dispatch failed. Track the workflow here: $workflow_url"
+        fi
         log_warn "Failed to dispatch Homebrew tap update for ${HOMEBREW_TAP_REPO}"
         log_warn "$dispatch_output"
         log_warn "Track the workflow here: $workflow_url"
@@ -472,6 +482,18 @@ update_homebrew_tap() {
         --jq '.[] | select(.displayTitle=="kaku_release_published" and .event=="repository_dispatch") | .url' 2>/dev/null || true)
     if [[ -n "$latest_run_url" ]]; then
         log_info "Latest Homebrew tap run: $latest_run_url"
+    fi
+
+    if [[ "$REQUIRE_HOMEBREW_TAP_UPDATE" == "1" ]]; then
+        local expected_version="$version"
+        local remote_version=""
+        remote_version=$(gh api "repos/${HOMEBREW_TAP_REPO}/contents/Casks/kakuku.rb?ref=main" --jq '.download_url' 2>/dev/null \
+            | xargs -I{} curl -fsSL {} 2>/dev/null \
+            | sed -n 's/^  version "\([^"]*\)"$/\1/p' | head -n1 || true)
+        if [[ "$remote_version" != "$expected_version" ]]; then
+            die "Homebrew tap version verification failed: expected ${expected_version}, got ${remote_version:-<empty>}"
+        fi
+        log_info "Homebrew tap verified at version ${remote_version}"
     fi
 }
 
