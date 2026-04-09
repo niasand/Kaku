@@ -625,7 +625,8 @@ impl super::TermWindow {
                         }
                         pixel_width += context.width.pixel_cell;
                         x_pos += context.width.pixel_cell;
-                        let sprite = glyph_cache.cached_block(key, context.metrics)?;
+                        let block_metrics = context.metrics.block_glyph_metrics();
+                        let sprite = glyph_cache.cached_block(key, &block_metrics)?;
                         computed_cells.push(ElementCell::Sprite(sprite));
                     } else {
                         let next_grapheme: Option<&str> = iter.peek().map(|s| *s);
