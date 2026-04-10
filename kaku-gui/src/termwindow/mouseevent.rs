@@ -170,6 +170,7 @@ impl super::TermWindow {
         }
 
         state.has_dragged = true;
+        context.set_cursor(Some(MouseCursor::Grabbing));
 
         let target_idx = self.drag_tab_target_idx(state.tab_idx, event.coords.x);
 
@@ -852,12 +853,26 @@ impl super::TermWindow {
             WMEK::Press(MousePress::Left) => match item {
                 TabBarItem::Tab { tab_idx, active } => {
                     if self.last_mouse_click.as_ref().map(|c| c.streak) == Some(2) {
-                        self.tab_drag_state = None;
-                        if let Err(err) = self.begin_tab_rename(tab_idx, ui_item) {
-                            log::debug!("begin_tab_rename({tab_idx}) failed: {err:#}");
+                        // Require two consecutive double-clicks on the same tab
+                        // to enter rename mode, preventing accidental triggers.
+                        let now = std::time::Instant::now();
+                        let is_second_double_click =
+                            self.pending_tab_rename.as_ref().map_or(false, |p| {
+                                p.tab_idx == tab_idx
+                                    && now.duration_since(p.at)
+                                        < std::time::Duration::from_millis(1000)
+                            });
+                        if is_second_double_click {
+                            self.pending_tab_rename = None;
+                            self.tab_drag_state = None;
+                            if let Err(err) = self.begin_tab_rename(tab_idx, ui_item) {
+                                log::debug!("begin_tab_rename({tab_idx}) failed: {err:#}");
+                            }
+                            context.set_cursor(Some(MouseCursor::Arrow));
+                            return;
                         }
-                        context.set_cursor(Some(MouseCursor::Arrow));
-                        return;
+                        self.pending_tab_rename =
+                            Some(super::PendingTabRename { tab_idx, at: now });
                     }
                     if !active {
                         if let Err(err) = self.activate_tab(tab_idx as isize) {
@@ -971,7 +986,13 @@ impl super::TermWindow {
             }
             _ => {}
         }
-        context.set_cursor(Some(MouseCursor::Arrow));
+        let cursor = match item {
+            TabBarItem::Tab { .. }
+            | TabBarItem::NewTabButton { .. }
+            | TabBarItem::WindowButton(_) => MouseCursor::Hand,
+            _ => MouseCursor::Arrow,
+        };
+        context.set_cursor(Some(cursor));
     }
 
     pub fn mouse_event_above_scroll_thumb(

@@ -104,6 +104,8 @@ pub enum MouseCursor {
     Text,
     SizeUpDown,
     SizeLeftRight,
+    /// Closed hand used while actively dragging something (e.g. reordering tabs).
+    Grabbing,
 }
 
 /// Represents the preferred appearance of the windowing

@@ -2078,6 +2078,7 @@ impl WindowInner {
                     MouseCursor::Hand => msg_send![ns_cursor_cls, pointingHandCursor],
                     MouseCursor::SizeUpDown => msg_send![ns_cursor_cls, resizeUpDownCursor],
                     MouseCursor::SizeLeftRight => msg_send![ns_cursor_cls, resizeLeftRightCursor],
+                    MouseCursor::Grabbing => msg_send![ns_cursor_cls, closedHandCursor],
                 };
                 let () = msg_send![ns_cursor_cls, setHiddenUntilMouseMoves: NO];
                 let () = msg_send![instance, set];
