@@ -1,4 +1,4 @@
-.PHONY: all fmt fmt-check build app dev check test install-tools install-hooks test-webgpu-fallback release dmg
+.PHONY: all fmt fmt-check build app dev check test install-tools install-hooks test-webgpu-fallback release dmg nightly
 
 all: build
 
@@ -74,6 +74,9 @@ test-webgpu-fallback:
 
 dmg:
 	./scripts/build.sh && ./scripts/notarize.sh
+
+nightly:
+	./scripts/nightly.sh
 
 release:
 	bash ./scripts/release.sh
