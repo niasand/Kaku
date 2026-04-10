@@ -3515,11 +3515,11 @@ local kaku_light = {
   ansi = {
     '#100F0F', -- black
     '#AF3029', -- red-600
-    '#66800B', -- green-600
-    '#AD8301', -- yellow-600
+    '#536907', -- green-700 (deepened for contrast)
+    '#8E6B02', -- yellow-700 (deepened for contrast)
     '#205EA6', -- blue-600
     '#A02F6F', -- magenta-600
-    '#24837B', -- cyan-600
+    '#1C6C66', -- cyan-700 (deepened for contrast)
     '#575653', -- base-700
   },
 
@@ -3527,7 +3527,7 @@ local kaku_light = {
     '#6F6E69', -- base-600 (comments)
     '#C03E35', -- red-500
     '#768D21', -- green-500
-    '#BE9207', -- yellow-500
+    '#AD8301', -- yellow-600 (deepened from bright for contrast)
     '#3171B2', -- blue-500
     '#B74583', -- magenta-500
     '#2F968D', -- cyan-500
@@ -3535,7 +3535,7 @@ local kaku_light = {
   },
 
   scrollbar_thumb = '#C9C2B1',
-  split = '#B8B7AD',
+  split = '#DDDBCF',
 
   tab_bar = {
     background = '#FFFCF0',
