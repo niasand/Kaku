@@ -4562,7 +4562,13 @@ impl WindowView {
             this.native_fullscreen_target.set(Some(true));
             this.native_fullscreen_transition_start
                 .set(Some(Instant::now()));
-            this.inner.borrow_mut().live_resizing = true;
+            // Use try_borrow_mut: AppKit can fire this synchronously while
+            // Connection::with_window_inner already holds inner.borrow_mut().
+            if let Ok(mut inner) = this.inner.try_borrow_mut() {
+                inner.live_resizing = true;
+            } else {
+                log::warn!("will_enter_fullscreen: RefCell already borrowed");
+            }
         }
     }
 
@@ -4605,15 +4611,18 @@ impl WindowView {
         if let Some(this) = Self::get_this(this) {
             this.native_fullscreen_transition_start.set(None);
             {
-                let mut inner = this.inner.borrow_mut();
-                inner.live_resizing = false;
-                inner.paint_throttled = false;
-                // Clear any screen_changed flag accumulated during the transition
-                // (e.g. from sketchybar firing NSApplicationDidChangeScreenParametersNotification)
-                // so the upcoming NeedRepaint paints immediately instead of doing another resize.
-                inner.screen_changed = false;
-                inner.invalidated = true;
-                inner.events.dispatch(WindowEvent::NeedRepaint);
+                // Use try_borrow_mut: AppKit can fire this synchronously while
+                // Connection::with_window_inner already holds inner.borrow_mut().
+                if let Ok(mut inner) = this.inner.try_borrow_mut() {
+                    inner.live_resizing = false;
+                    inner.paint_throttled = false;
+                    // Clear any screen_changed flag accumulated during the transition
+                    // (e.g. from sketchybar firing NSApplicationDidChangeScreenParametersNotification)
+                    // so the upcoming NeedRepaint paints immediately instead of doing another resize.
+                    inner.screen_changed = false;
+                    inner.invalidated = true;
+                    inner.events.dispatch(WindowEvent::NeedRepaint);
+                }
             }
         }
     }
@@ -4626,12 +4635,20 @@ impl WindowView {
             this.native_fullscreen_target.set(Some(false));
             this.native_fullscreen_transition_start.set(Some(now));
             this.transition_hide_until.set(None);
-            this.inner.borrow_mut().live_resizing = true;
-
+            // Use try_borrow_mut: AppKit fires this notification synchronously
+            // from inside [NSWindow close], which we call while Connection
+            // already holds inner.borrow_mut(). A direct borrow_mut here would
+            // panic and abort. Matches the window_will_close pattern.
             if let Ok(mut inner) = this.inner.try_borrow_mut() {
+                inner.live_resizing = true;
                 inner.paint_throttled = false;
                 inner.invalidated = true;
                 inner.events.dispatch(WindowEvent::NeedRepaint);
+            } else {
+                log::warn!(
+                    "will_exit_fullscreen: RefCell already borrowed, \
+                     skipping live_resizing/repaint update"
+                );
             }
             unsafe {
                 let _: () = msg_send![view_id, setNeedsDisplay: YES];

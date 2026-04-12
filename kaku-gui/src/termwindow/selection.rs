@@ -36,9 +36,7 @@ impl super::TermWindow {
                 for (idx, phys) in line.physical_lines.iter().enumerate() {
                     let this_row = line.first_row + idx as StableRowIndex;
                     if this_row >= first_row && this_row < last_row {
-                        let last_phys_idx = phys.len().saturating_sub(1);
                         let cols = sel.cols_for_row(this_row, rectangular);
-                        let last_col_idx = cols.end.saturating_sub(1).min(last_phys_idx);
                         let mut col_span = phys.columns_as_line(cols);
                         let seqno = col_span.current_seqno();
                         // Only trim trailing whitespace if we are the last line
@@ -56,19 +54,21 @@ impl super::TermWindow {
                         last_was_wrapped = phys.last_cell_was_wrapped();
 
                         // Layer B: heuristic for TUI self-wrapped full-width rows.
-                        // When the row is not marked as wrapped by the terminal but the
-                        // selection reached the rightmost column and the row fills the
-                        // terminal width, treat it as a visual continuation.
-                        if !last_was_wrapped
-                            && unwrap_tui
-                            && last_col_idx + 1 >= term_cols
-                            && phys
+                        // Ratatui-style renderers (codex, cursor CLI) repaint via
+                        // absolute cursor positioning and never set the DECAWM wrap
+                        // attribute. phys.len() is also unreliable (lazy storage).
+                        // Instead, find the rightmost non-space cell and check whether
+                        // its right edge reaches the terminal width.
+                        if !last_was_wrapped && unwrap_tui {
+                            let last_content_right = phys
                                 .visible_cells()
+                                .filter(|c| c.str() != " ")
                                 .last()
-                                .map(|c| c.str() != " ")
-                                .unwrap_or(false)
-                        {
-                            last_was_wrapped = true;
+                                .map(|c| c.cell_index() + c.width())
+                                .unwrap_or(0);
+                            if last_content_right >= term_cols {
+                                last_was_wrapped = true;
+                            }
                         }
                     }
                 }
@@ -91,7 +91,6 @@ impl super::TermWindow {
             let mut last_was_wrapped = false;
             let first_row = sel.rows().start;
             let last_row = sel.rows().end;
-            let term_cols = pane.get_dimensions().cols;
             let unwrap_tui = self.config.copy_unwrap_tui_lines;
 
             for line in pane.get_logical_lines(sel.rows()) {
@@ -102,35 +101,49 @@ impl super::TermWindow {
                 for (idx, phys) in line.physical_lines.iter().enumerate() {
                     let this_row = line.first_row + idx as StableRowIndex;
                     if this_row >= first_row && this_row < last_row {
-                        let last_phys_idx = phys.len().saturating_sub(1);
                         let cols = sel.cols_for_row(this_row, rectangular);
-                        let last_col_idx = cols.end.saturating_sub(1).min(last_phys_idx);
                         let col_span = phys.columns_as_str(cols);
-                        // Only trim trailing whitespace if we are the last line
-                        // in a wrapped sequence
-                        if idx == last_idx {
-                            s.push_str(col_span.trim_end());
+
+                        // When joining to the previous row, also trim trailing
+                        // whitespace from the content we're about to add.
+                        let joining = last_was_wrapped;
+                        let content: &str = if idx == last_idx || joining {
+                            col_span.trim_end()
                         } else {
-                            s.push_str(&col_span);
+                            &col_span
+                        };
+
+                        if joining && !s.is_empty() {
+                            // Joining to previous row: normalize whitespace at
+                            // the seam. If the continuation has leading spaces
+                            // (Ink / CLI word-wrap indent), strip them and ensure
+                            // a single-space separator. If no leading spaces
+                            // (DECAWM mid-word wrap), append directly so no
+                            // space is inserted inside a token.
+                            if content.starts_with(' ') {
+                                let trimmed = content.trim_start();
+                                if !trimmed.is_empty() {
+                                    if !s.ends_with(' ') {
+                                        s.push(' ');
+                                    }
+                                    s.push_str(trimmed);
+                                }
+                            } else {
+                                s.push_str(content);
+                            }
+                        } else {
+                            s.push_str(content);
                         }
 
                         // Layer A: use the per-line wrap attribute so partial-width
                         // selections on a genuinely soft-wrapped row still suppress \n.
                         last_was_wrapped = phys.last_cell_was_wrapped();
 
-                        // Layer B: heuristic for TUI self-wrapped full-width rows.
-                        // When the row is not marked as wrapped by the terminal but the
-                        // selection reached the rightmost column and the row fills the
-                        // terminal width, treat it as a visual continuation.
-                        if !last_was_wrapped
-                            && unwrap_tui
-                            && last_col_idx + 1 >= term_cols
-                            && phys
-                                .visible_cells()
-                                .last()
-                                .map(|c| c.str() != " ")
-                                .unwrap_or(false)
-                        {
+                        // Layer B: when copy_unwrap_tui_lines is on, always treat
+                        // this row as wrapped-to-next so the entire selection joins
+                        // into one line. Covers Ratatui full-width boxes, Ink
+                        // word-wrapped CLI output, and DECAWM-wrapped terminal text.
+                        if !last_was_wrapped && unwrap_tui {
                             last_was_wrapped = true;
                         }
                     }
