@@ -3343,14 +3343,21 @@ fn shell_tokens_are_dangerous(tokens: &[String]) -> bool {
     }
     match cmd {
         // Shell/interpreter invoked with an inline script (-c / -lc / -ic etc.) can run anything.
-        "bash" | "sh" | "zsh" | "fish" | "python" | "python3" | "perl" | "ruby" | "node" => {
-            tokens.iter().skip(1).any(|t| {
-                t == "-c"
-                    || (t.starts_with('-')
-                        && !t.starts_with("--")
-                        && t[1..].contains('c'))
-            })
-        }
+        "bash" | "sh" | "zsh" | "fish" | "python" | "python3" => tokens.iter().skip(1).any(|t| {
+            t == "-c" || (t.starts_with('-') && !t.starts_with("--") && t[1..].contains('c'))
+        }),
+        // perl/ruby: -c is syntax-check only (read-only), but -e / --eval is dangerous.
+        "perl" | "ruby" => tokens.iter().skip(1).any(|t| {
+            t == "-e"
+                || t == "--eval"
+                || (t.starts_with('-') && !t.starts_with("--") && t[1..].contains('e'))
+        }),
+        // node: -c / --check is syntax-check only; -e / --eval is dangerous.
+        "node" => tokens.iter().skip(1).any(|t| {
+            t == "-e"
+                || t == "--eval"
+                || (t.starts_with('-') && !t.starts_with("--") && t[1..].contains('e'))
+        }),
         "rm" => rm_is_dangerous(tokens),
         "find" => find_is_dangerous(tokens),
         "git" => git_is_dangerous(tokens),
@@ -3395,11 +3402,26 @@ fn git_is_dangerous(tokens: &[String]) -> bool {
     if has_output_flag(tokens, &["-o", "--output"]) {
         return true;
     }
-    // git push with --force or -f is the only truly irreversible git operation.
-    if tokens.get(1).map(String::as_str) == Some("push") {
-        return tokens.iter().skip(2).any(|t| t == "--force" || t == "-f");
+    match tokens.get(1).map(String::as_str) {
+        // git push with --force or -f is irreversible.
+        Some("push") => tokens.iter().skip(2).any(|t| t == "--force" || t == "-f"),
+        // git reset --hard (or --merge / --keep) can destroy working tree changes.
+        Some("reset") => tokens
+            .iter()
+            .skip(2)
+            .any(|t| t == "--hard" || t == "--merge" || t == "--keep"),
+        // git clean removes untracked files; -f/--force is required for actual deletion.
+        Some("clean") => tokens.iter().skip(2).any(|t| {
+            t == "-f"
+                || t == "--force"
+                || (t.starts_with('-') && !t.starts_with("--") && t[1..].contains('f'))
+        }),
+        // git branch -D forces deletion without merge checks.
+        Some("branch") => tokens.iter().skip(2).any(|t| t == "-D"),
+        // git checkout -f discards local modifications.
+        Some("checkout") => tokens.iter().skip(2).any(|t| t == "-f" || t == "--force"),
+        _ => false,
     }
-    false
 }
 
 fn has_output_flag(tokens: &[String], flags: &[&str]) -> bool {
@@ -3967,6 +3989,10 @@ mod markdown_tests {
             "cp Cargo.toml Cargo.toml.bak",
             "mv old.txt new.txt",
             "echo hello",
+            // syntax-check only interpreters (read-only)
+            "perl -c script.pl",
+            "ruby -c script.rb",
+            "node --check script.js",
             // piped safe commands
             "grep 'foo|bar' Cargo.toml",
             "cat Cargo.toml | tr a-z A-Z",
@@ -3994,10 +4020,13 @@ mod markdown_tests {
             "rm -r src/",
             "rm -f important.txt",
             "rm -Rf ./dist",
-            // shell/interpreter subshells with -c
+            // shell/interpreter subshells with inline scripts
             "bash -c 'rm -rf /'",
             "sh -c 'pwd'",
             "python3 -c 'print(1)'",
+            "perl -e 'print 1'",
+            "ruby -e 'print 1'",
+            "node -e 'console.log(1)'",
             // xargs (pipes to arbitrary command)
             "rg TODO src | xargs rm",
             "find . | xargs echo",
@@ -4012,9 +4041,13 @@ mod markdown_tests {
             // output flags on sort/tree
             "sort -o out.txt Cargo.toml",
             "tree -o out.txt .",
-            // git push --force
+            // git dangerous operations
             "git push --force origin main",
             "git push -f",
+            "git reset --hard HEAD",
+            "git clean -fd",
+            "git branch -D feature",
+            "git checkout -f main",
             // git with --output
             "git diff --output=out.patch",
             // pipeline hazards (already handled by split_shell_pipeline)

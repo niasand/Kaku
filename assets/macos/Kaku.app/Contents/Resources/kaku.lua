@@ -975,12 +975,40 @@ local function extract_assistant_message_content(response)
   if type(response) ~= "table" then
     return nil
   end
+
+  -- Fallback 1: top-level result/output used by some custom providers.
+  if type(response.result) == "string" and response.result ~= "" then
+    return response.result
+  end
+  if type(response.output) == "string" and response.output ~= "" then
+    return response.output
+  end
+
   local choices = response.choices
-  if type(choices) ~= "table" or #choices == 0 then
+  if type(choices) ~= "table" then
     return nil
   end
-  local message = choices[1] and choices[1].message
+
+  local choice
+  if #choices > 0 then
+    choice = choices[1]
+  else
+    -- Some providers return choices as a map (e.g. choices = { ["0"] = {...} }).
+    choice = choices["0"] or choices[0]
+  end
+  if type(choice) ~= "table" then
+    return nil
+  end
+
+  local message = choice.message
   if type(message) ~= "table" then
+    -- Fallback 2: direct content/text in choice.
+    if type(choice.content) == "string" then
+      return choice.content
+    end
+    if type(choice.text) == "string" then
+      return choice.text
+    end
     return nil
   end
 
@@ -989,6 +1017,10 @@ local function extract_assistant_message_content(response)
     return content
   end
   if type(content) ~= "table" then
+    -- Fallback 3: message.text.
+    if type(message.text) == "string" then
+      return message.text
+    end
     return nil
   end
 
