@@ -9,7 +9,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::{BufRead, Read};
 use std::os::unix::process::CommandExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -529,6 +529,7 @@ pub fn execute(
         "fs_read" => {
             let raw_path = args["path"].as_str().context("missing path")?;
             let path = resolve(raw_path, cwd)?;
+            reject_if_sensitive(&path)?;
             // For relative paths, ensure they don't escape the working directory
             // (e.g. ../../.ssh/id_rsa). Absolute paths and ~/... are always allowed.
             if !raw_path.starts_with('/') && !raw_path.starts_with("~/") {
@@ -1547,6 +1548,39 @@ fn exec_http_request(
     Ok(out)
 }
 
+/// Refuse reads of well-known credential / system-secret locations, even when
+/// the caller passes an absolute or `~/`-prefixed path (both of which bypass
+/// the cwd sandbox). Best-effort canonicalization: on ENOENT we compare the
+/// raw path so a file about to be created in a blocked directory is still
+/// caught.
+fn reject_if_sensitive(path: &Path) -> Result<()> {
+    let canon = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let home = std::env::var("HOME").unwrap_or_default();
+    let mut blocked: Vec<PathBuf> = vec![
+        PathBuf::from("/etc/shadow"),
+        PathBuf::from("/etc/sudoers"),
+        PathBuf::from("/etc/sudoers.d"),
+        PathBuf::from("/private/etc/shadow"),
+        PathBuf::from("/private/etc/sudoers"),
+        PathBuf::from("/private/etc/sudoers.d"),
+    ];
+    if !home.is_empty() {
+        for rel in [".ssh", ".aws/credentials", ".gnupg", ".config/kaku/secrets"] {
+            blocked.push(PathBuf::from(&home).join(rel));
+        }
+    }
+    for b in &blocked {
+        let b_canon = std::fs::canonicalize(b).unwrap_or_else(|_| b.clone());
+        if canon == b_canon || canon.starts_with(&b_canon) {
+            anyhow::bail!(
+                "refused: '{}' is a protected secret location",
+                path.display()
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Handles `~/…` expansion and relative paths (resolved against `cwd`).
 fn resolve(path: &str, cwd: &str) -> Result<PathBuf> {
     let p = if path.starts_with("~/") || path == "~" {
@@ -1700,6 +1734,21 @@ mod tests {
         assert_eq!(
             resolve("src/main.rs", "/project").unwrap(),
             PathBuf::from("/project/src/main.rs")
+        );
+    }
+
+    #[test]
+    fn fs_read_refuses_ssh_directory() {
+        let home = std::env::var("HOME").expect("HOME not set");
+        let ssh_probe = format!("{}/.ssh/id_rsa", home);
+        let args = serde_json::json!({"path": ssh_probe});
+        let mut cwd = "/tmp".to_string();
+        let err = execute("fs_read", &args, &mut cwd, &dummy_config(), &no_cancel())
+            .expect_err("fs_read should refuse ~/.ssh paths");
+        assert!(
+            err.to_string().contains("protected secret location"),
+            "unexpected error: {}",
+            err
         );
     }
 
