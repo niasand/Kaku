@@ -532,16 +532,16 @@ pub fn execute(
             // For relative paths, ensure they don't escape the working directory
             // (e.g. ../../.ssh/id_rsa). Absolute paths and ~/... are always allowed.
             if !raw_path.starts_with('/') && !raw_path.starts_with("~/") {
-                if let (Ok(canon_path), Ok(canon_cwd)) =
-                    (std::fs::canonicalize(&path), std::fs::canonicalize(cwd))
-                {
-                    if !canon_path.starts_with(&canon_cwd) {
-                        anyhow::bail!(
-                            "path '{}' resolves outside the working directory; \
-                             use an absolute path to access it",
-                            raw_path
-                        );
-                    }
+                let canon_path = std::fs::canonicalize(&path)
+                    .with_context(|| format!("resolve '{}' inside working directory", raw_path))?;
+                let canon_cwd = std::fs::canonicalize(&cwd)
+                    .with_context(|| format!("resolve working directory '{}'", cwd))?;
+                if !canon_path.starts_with(&canon_cwd) {
+                    anyhow::bail!(
+                        "path '{}' resolves outside the working directory; \
+                         use an absolute path to access it",
+                        raw_path
+                    );
                 }
             }
             let file =
