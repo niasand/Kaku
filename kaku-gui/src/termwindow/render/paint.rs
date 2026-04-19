@@ -238,14 +238,6 @@ impl crate::TermWindow {
         if is_first_paint {
             self.first_paint_logged = true;
             crate::startup_trace::mark("first paint_impl done");
-            // AppKit menubar + global hotkey registration take ~18ms and
-            // do not affect the first frame; defer them out of the
-            // path-to-first-pixel critical path. spawn_into_main_thread
-            // queues them for the next runloop iteration.
-            promise::spawn::spawn_into_main_thread(async {
-                crate::frontend::run_deferred_first_window_init();
-            })
-            .detach();
         }
 
         Ok(())

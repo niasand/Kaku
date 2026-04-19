@@ -299,24 +299,6 @@ pub fn set_default_terminal_with_feedback() {
     }
 }
 
-/// Runs one-shot GUI initialization that does not affect the first frame
-/// (AppKit menubar construction, global hotkey registration). Called from
-/// the first `paint_impl` completion so it does not block path-to-first-
-/// pixel. Idempotent: subsequent calls are no-ops.
-pub fn run_deferred_first_window_init() {
-    static DONE: AtomicBool = AtomicBool::new(false);
-    if DONE.swap(true, Ordering::Relaxed) {
-        return;
-    }
-    startup_trace::mark("deferred recreate_menubar start");
-    crate::commands::CommandDef::recreate_menubar(&config::configuration());
-    startup_trace::mark("deferred recreate_menubar done");
-    if let Some(conn) = Connection::get() {
-        startup_trace::mark("deferred sync_global_hotkey start");
-        conn.sync_global_hotkey();
-        startup_trace::mark("deferred sync_global_hotkey done");
-    }
-}
 
 impl GuiFrontEnd {
     pub fn try_new() -> anyhow::Result<Rc<GuiFrontEnd>> {
@@ -532,10 +514,12 @@ impl GuiFrontEnd {
         refresh_fast_config_snapshot();
         startup_trace::mark("    refresh_fast_config_snapshot done");
 
-        // recreate_menubar + sync_global_hotkey are deferred to the first
-        // paint completion via run_deferred_first_window_init(); see
-        // paint_impl. They do not affect the first frame, and running them
-        // synchronously here added ~18ms to path-to-first-pixel.
+        // Build the initial menubar synchronously so AppKit has its menu
+        // hierarchy established before key events arrive. On macOS 26,
+        // deferring this causes routeKeyEquivalent to swallow arrow keys
+        // and Ctrl+C.
+        crate::commands::CommandDef::recreate_menubar(&config::configuration());
+        front_end.connection.sync_global_hotkey();
 
         Ok(front_end)
     }

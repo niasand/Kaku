@@ -646,20 +646,17 @@ impl CommandDef {
     /// We use the macos menu item tag to do a mark-sweep style garbage
     /// collection to figure out which items were not reused/updated
     /// and remove them at the end.
+
+    /// Redirect AppKit's "Spotlight for Help" injection to an orphan menu
+    /// that is never attached to the menubar. On macOS 26, AppKit's
+    /// injected NSMenuItem lifetime is mis-handled, PAC-faulting during
+    /// key-equivalent routing. Must run synchronously at startup, before
+    /// any key event can trigger routeKeyEquivalent.
     #[cfg(target_os = "macos")]
-    pub fn recreate_menubar(config: &ConfigHandle) {
+    pub fn install_orphan_help_menu() {
         use std::sync::Once;
         use window::os::macos::menu::*;
-        use window::{Connection, ConnectionOps};
 
-        // AppKit always injects "Spotlight for Help" into some menu. Per
-        // NSApplication.h: "If a non-nil menu is set as the Help menu,
-        // Spotlight for Help will be installed in it; otherwise AppKit
-        // will install Spotlight for Help into a menu of its choosing."
-        // On macOS 26 the injected NSMenuItem's lifetime is mis-handled,
-        // PAC-faulting during key-equivalent routing. Redirect to an
-        // orphan menu that is never attached to the menubar so nothing
-        // walks it during sendEvent:.
         static HELP_SINK_ONCE: Once = Once::new();
         HELP_SINK_ONCE.call_once(|| {
             let help_sink = Menu::new_with_title("");
@@ -668,6 +665,17 @@ impl CommandDef {
             // Rust StrongPtr keeps refcount safely high for process lifetime.
             std::mem::forget(help_sink);
         });
+    }
+
+    /// Rebuild the macOS menubar from the current config and key bindings.
+    /// Uses a mark-sweep approach: tag existing items, update or create new
+    /// ones, then remove stale items at the end.
+    #[cfg(target_os = "macos")]
+    pub fn recreate_menubar(config: &ConfigHandle) {
+        use window::os::macos::menu::*;
+        use window::{Connection, ConnectionOps};
+
+        Self::install_orphan_help_menu();
 
         let inputmap = InputMap::new(config);
 
