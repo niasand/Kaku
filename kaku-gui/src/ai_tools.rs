@@ -34,9 +34,10 @@ struct BgProcess {
 
 impl Drop for BgProcess {
     fn drop(&mut self) {
-        // Reap the child so it doesn't linger as a zombie on Unix if the user
-        // never called shell_poll after the process exited.
-        let _ = self.child.try_wait();
+        // Kill the process group and wait so the child doesn't linger as a
+        // zombie. try_wait() alone is a no-op for still-running children.
+        kill_process_group(&self.child);
+        let _ = self.child.wait();
     }
 }
 
@@ -818,6 +819,8 @@ pub fn execute(
                 .current_dir(&exec_cwd)
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped())
+                // Own process group so kill_process_group() reaches all descendants.
+                .process_group(0)
                 .spawn()
                 .with_context(|| format!("failed to spawn background command: {}", command))?;
             let pid = child.id();

@@ -3679,7 +3679,13 @@ impl WindowView {
         let frame = unsafe { NSView::frame(this as *mut _) };
 
         if let Some(this) = Self::get_this(this) {
-            let mut inner = this.inner.borrow_mut();
+            if this.is_closing.get() {
+                return;
+            }
+            let mut inner = match this.inner.try_borrow_mut() {
+                Ok(inner) => inner,
+                Err(_) => return,
+            };
             if let Some(ref view) = inner.view_id {
                 let view = view.load();
                 if view.is_null() {
@@ -4049,7 +4055,10 @@ impl WindowView {
             }
         }
         if let Some(myself) = Self::get_this(this) {
-            let mut inner = myself.inner.borrow_mut();
+            let mut inner = match myself.inner.try_borrow_mut() {
+                Ok(inner) => inner,
+                Err(_) => return,
+            };
 
             if suppress_horz {
                 inner.hscroll_remainder = 0.;
@@ -4589,18 +4598,27 @@ impl WindowView {
     extern "C" fn did_change_screen(this: &mut Object, _sel: Sel, _notification: id) {
         log::trace!("did_change_screen");
         if let Some(this) = Self::get_this(this) {
+            if this.is_closing.get() {
+                return;
+            }
             // Just set a flag; we don't want to react immediately
             // as this even fires as part of a live move and the
             // resize flow may try to re-position the window to
             // the wrong place.
-            this.inner.borrow_mut().screen_changed = true;
+            if let Ok(mut inner) = this.inner.try_borrow_mut() {
+                inner.screen_changed = true;
+            }
         }
     }
 
     extern "C" fn will_start_live_resize(this: &mut Object, _sel: Sel, _notification: id) {
         if let Some(this) = Self::get_this(this) {
-            let mut inner = this.inner.borrow_mut();
-            inner.live_resizing = true;
+            if this.is_closing.get() {
+                return;
+            }
+            if let Ok(mut inner) = this.inner.try_borrow_mut() {
+                inner.live_resizing = true;
+            }
         }
     }
 
@@ -4781,8 +4799,14 @@ impl WindowView {
 
     extern "C" fn did_end_live_resize(this: &mut Object, _sel: Sel, _notification: id) {
         if let Some(this) = Self::get_this(this) {
+            if this.is_closing.get() {
+                return;
+            }
             let window_to_persist = {
-                let mut inner = this.inner.borrow_mut();
+                let mut inner = match this.inner.try_borrow_mut() {
+                    Ok(inner) => inner,
+                    Err(_) => return,
+                };
                 inner.live_resizing = false;
                 if APP_TERMINATING.load(Ordering::Relaxed) {
                     None

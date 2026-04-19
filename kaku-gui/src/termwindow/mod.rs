@@ -1152,12 +1152,13 @@ impl TermWindow {
                         front_end().forget_known_window(_window);
                         return;
                     }
-                    let window = self.window.clone().unwrap();
-                    let (overlay, future) = start_overlay(self, &tab, move |tab_id, term| {
-                        confirm_close_window(term, mux_window_id, window, tab_id)
-                    });
-                    self.assign_overlay(tab.tab_id(), overlay);
-                    promise::spawn::spawn(future).detach();
+                    if let Some(window) = self.window.clone() {
+                        let (overlay, future) = start_overlay(self, &tab, move |tab_id, term| {
+                            confirm_close_window(term, mux_window_id, window, tab_id)
+                        });
+                        self.assign_overlay(tab.tab_id(), overlay);
+                        promise::spawn::spawn(future).detach();
+                    }
 
                     // Don't close right now; let the close happen from
                     // the confirmation overlay
@@ -4076,10 +4077,15 @@ impl TermWindow {
                 );
             }
             ToggleFullScreen => {
-                self.window.as_ref().unwrap().toggle_fullscreen();
+                if let Some(w) = self.window.as_ref() {
+                    w.toggle_fullscreen();
+                }
             }
             ToggleAlwaysOnTop => {
-                let window = self.window.clone().unwrap();
+                let window = match self.window.clone() {
+                    Some(w) => w,
+                    None => return Ok(PerformAssignmentResult::Handled),
+                };
                 let current_level = self.window_state.as_window_level();
 
                 match current_level {
@@ -4092,21 +4098,23 @@ impl TermWindow {
                 }
             }
             ToggleAlwaysOnBottom => {
-                let window = self.window.clone().unwrap();
-                let current_level = self.window_state.as_window_level();
+                if let Some(window) = self.window.clone() {
+                    let current_level = self.window_state.as_window_level();
 
-                match current_level {
-                    WindowLevel::AlwaysOnBottom => {
-                        window.set_window_level(WindowLevel::Normal);
-                    }
-                    WindowLevel::AlwaysOnTop | WindowLevel::Normal => {
-                        window.set_window_level(WindowLevel::AlwaysOnBottom);
+                    match current_level {
+                        WindowLevel::AlwaysOnBottom => {
+                            window.set_window_level(WindowLevel::Normal);
+                        }
+                        WindowLevel::AlwaysOnTop | WindowLevel::Normal => {
+                            window.set_window_level(WindowLevel::AlwaysOnBottom);
+                        }
                     }
                 }
             }
             SetWindowLevel(level) => {
-                let window = self.window.clone().unwrap();
-                window.set_window_level(level.clone());
+                if let Some(window) = self.window.clone() {
+                    window.set_window_level(level.clone());
+                }
             }
             CopyTo(dest) => {
                 let text = self.selection_text(pane);
@@ -4247,12 +4255,14 @@ impl TermWindow {
                             None => anyhow::bail!("no active tab!?"),
                         };
 
-                        let window = self.window.clone().unwrap();
-                        let (overlay, future) = start_overlay(self, &tab, move |tab_id, term| {
-                            confirm_quit_program(term, window, tab_id)
-                        });
-                        self.assign_overlay(tab.tab_id(), overlay);
-                        promise::spawn::spawn(future).detach();
+                        if let Some(window) = self.window.clone() {
+                            let (overlay, future) =
+                                start_overlay(self, &tab, move |tab_id, term| {
+                                    confirm_quit_program(term, window, tab_id)
+                                });
+                            self.assign_overlay(tab.tab_id(), overlay);
+                            promise::spawn::spawn(future).detach();
+                        }
                     }
                 }
             }
@@ -5063,12 +5073,13 @@ impl TermWindow {
         let should_confirm = self.config.pane_close_confirmation
             || (confirm && !pane.can_close_without_prompting(CloseReason::Pane));
         if should_confirm {
-            let window = self.window.clone().unwrap();
-            let (overlay, future) = start_overlay_pane(self, &pane, move |pane_id, term| {
-                confirm_close_pane(pane_id, term, mux_window_id, window)
-            });
-            self.assign_overlay_for_pane(pane_id, overlay);
-            promise::spawn::spawn(future).detach();
+            if let Some(window) = self.window.clone() {
+                let (overlay, future) = start_overlay_pane(self, &pane, move |pane_id, term| {
+                    confirm_close_pane(pane_id, term, mux_window_id, window)
+                });
+                self.assign_overlay_for_pane(pane_id, overlay);
+                promise::spawn::spawn(future).detach();
+            }
         } else {
             mux.remove_pane(pane_id);
         }
@@ -5096,12 +5107,13 @@ impl TermWindow {
                 return;
             }
 
-            let window = self.window.clone().unwrap();
-            let (overlay, future) = start_overlay(self, &tab, move |tab_id, term| {
-                confirm_close_tab(tab_id, term, mux_window_id, window)
-            });
-            self.assign_overlay(tab_id, overlay);
-            promise::spawn::spawn(future).detach();
+            if let Some(window) = self.window.clone() {
+                let (overlay, future) = start_overlay(self, &tab, move |tab_id, term| {
+                    confirm_close_tab(tab_id, term, mux_window_id, window)
+                });
+                self.assign_overlay(tab_id, overlay);
+                promise::spawn::spawn(future).detach();
+            }
         } else {
             mux.remove_tab(tab_id);
         }
@@ -5123,12 +5135,13 @@ impl TermWindow {
             // We do not record the cwd here: the user may cancel, and we cannot
             // reliably hook the async confirmation result from this call site.
             // In practice, tabs with active processes are rare to close with reopen-intent.
-            let window = self.window.clone().unwrap();
-            let (overlay, future) = start_overlay(self, &tab, move |tab_id, term| {
-                confirm_close_tab(tab_id, term, mux_window_id, window)
-            });
-            self.assign_overlay(tab_id, overlay);
-            promise::spawn::spawn(future).detach();
+            if let Some(window) = self.window.clone() {
+                let (overlay, future) = start_overlay(self, &tab, move |tab_id, term| {
+                    confirm_close_tab(tab_id, term, mux_window_id, window)
+                });
+                self.assign_overlay(tab_id, overlay);
+                promise::spawn::spawn(future).detach();
+            }
         } else {
             // No confirmation needed: record cwd and close immediately.
             if let Some(pane) = tab.get_active_pane() {
@@ -5342,7 +5355,9 @@ impl TermWindow {
                 }
             }
         }
-        self.window.as_ref().unwrap().invalidate();
+        if let Some(w) = self.window.as_ref() {
+            w.invalidate();
+        }
     }
 
     fn maybe_scroll_to_bottom_for_input(&mut self, pane: &Arc<dyn Pane>) {
