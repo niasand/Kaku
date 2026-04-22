@@ -311,7 +311,7 @@ fn shell_tokens_are_dangerous(tokens: &[String]) -> bool {
         // Pure read-only informational commands: no filesystem writes possible.
         "pwd" | "ls" | "cat" | "head" | "tail" | "wc" | "rg" | "grep" | "which" | "whereis"
         | "cut" | "uniq" | "nl" | "stat" | "file" | "realpath" | "readlink" | "basename"
-        | "dirname" | "echo" | "tr" | "awk"
+        | "dirname" | "echo" | "tr"
         // System info (read-only).
         | "date" | "uname" | "hostname" | "whoami" | "id" | "groups"
         | "uptime" | "w" | "who" | "last"
@@ -346,8 +346,8 @@ fn shell_tokens_are_dangerous(tokens: &[String]) -> bool {
         // find: safe unless it carries write/exec flags.
         "find" => find_is_dangerous(tokens),
 
-        // rm: always requires approval when recursive or force flag is present.
-        "rm" => rm_is_dangerous(tokens),
+        // rm is always mutating, require approval for every invocation.
+        "rm" => true,
 
         // git: only an explicit read-only subcommand allowlist skips approval.
         "git" => !git_is_read_only(tokens),
@@ -366,10 +366,9 @@ fn shell_tokens_are_dangerous(tokens: &[String]) -> bool {
         // node: --check is a syntax-check (safe); -e runs inline code (dangerous).
         "node" => !tokens.iter().skip(1).any(|t| t == "--check"),
 
-        // bash/sh/zsh/fish/python with -c runs arbitrary code.
-        "bash" | "sh" | "zsh" | "fish" | "python" | "python3" => tokens.iter().skip(1).any(|t| {
-            t == "-c" || (t.starts_with('-') && !t.starts_with("--") && t[1..].contains('c'))
-        }),
+        // Shells/interpreters execute scripts and can mutate local state even
+        // without inline `-c`, so always require approval.
+        "bash" | "sh" | "zsh" | "fish" | "python" | "python3" | "awk" => true,
 
         // Build tools: compile/test but do not modify project source files.
         "cargo" | "make" => false,
@@ -377,20 +376,6 @@ fn shell_tokens_are_dangerous(tokens: &[String]) -> bool {
         // Everything else (touch, mkdir, cp, mv, npm, git write ops, etc.) requires approval.
         _ => true,
     }
-}
-
-/// rm is dangerous when it includes a recursive (-r/-R) or force (-f) flag,
-/// since those deletions are irreversible.
-fn rm_is_dangerous(tokens: &[String]) -> bool {
-    tokens.iter().skip(1).any(|t| {
-        t == "-r"
-            || t == "-R"
-            || t == "-f"
-            || t == "--force"
-            || (t.starts_with('-')
-                && !t.starts_with("--")
-                && t[1..].chars().any(|c| matches!(c, 'r' | 'R' | 'f')))
-    })
 }
 
 /// curl defaults to GET (read-only). Require approval when it writes to disk

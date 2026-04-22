@@ -710,34 +710,33 @@ pub fn execute(
                 pump_reader_capped(s, stderr_buf.clone(), bytes_total.clone(), streaming_cap)
             });
 
-            // Poll until the child exits, output exceeds the cap, the user
-            // cancels, or the hard timeout fires. Overflow does NOT kill the
-            // child: write operations (cargo build, npm install, git ...) must
-            // be allowed to finish; pump_reader_capped drains the pipe so the
-            // child never blocks on a full buffer. Cancel and timeout DO kill.
+            // Poll until the child exits, the user cancels, or the hard timeout
+            // fires. When output exceeds the cap we stop buffering additional
+            // bytes, but keep polling so cancel/timeout still work.
             let start = Instant::now();
             let timeout = Duration::from_secs(SHELL_EXEC_TIMEOUT_SECS);
             let mut canceled = false;
             let mut timed_out = false;
-            let overflowed = loop {
+            let mut overflowed = false;
+            loop {
                 if cancel.load(Ordering::Relaxed) {
                     kill_process_group(&child);
                     canceled = true;
-                    break false;
+                    break;
                 }
                 if start.elapsed() >= timeout {
                     kill_process_group(&child);
                     timed_out = true;
-                    break false;
+                    break;
                 }
-                if bytes_total.load(Ordering::Relaxed) >= streaming_cap {
-                    break true;
+                if !overflowed && bytes_total.load(Ordering::Relaxed) >= streaming_cap {
+                    overflowed = true;
                 }
                 if let Ok(Some(_)) = child.try_wait() {
-                    break false;
+                    break;
                 }
                 std::thread::sleep(Duration::from_millis(50));
-            };
+            }
             // Wait for the child to finish, then join reader threads.
             let status = child.wait().ok();
             if let Some(h) = h1 {
@@ -1815,6 +1814,36 @@ mod tests {
         assert!(
             elapsed < Duration::from_secs(5),
             "cancel should return within a few seconds, took {:?}",
+            elapsed
+        );
+        assert!(
+            result.contains("[canceled by user"),
+            "expected canceled marker, got: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn shell_exec_overflow_still_honors_cancel() {
+        // Emit far more than the output cap, then sleep. execute() must remain
+        // cancelable after overflow instead of blocking in child.wait().
+        let args = serde_json::json!({
+            "command": "yes x | head -c 5000000; sleep 2"
+        });
+        let mut cwd = "/tmp".to_string();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let trigger = Arc::clone(&cancel);
+        let flipper = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(250));
+            trigger.store(true, Ordering::Relaxed);
+        });
+        let start = Instant::now();
+        let result = execute("shell_exec", &args, &mut cwd, &dummy_config(), &cancel).unwrap();
+        flipper.join().unwrap();
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < Duration::from_secs(2),
+            "cancel after overflow should return quickly, took {:?}",
             elapsed
         );
         assert!(

@@ -3862,14 +3862,19 @@ mod markdown_tests {
             "sudo rm -rf /",
             "sudo anything",
             // rm with recursive or force flags
+            "rm important.txt",
             "rm -rf /tmp/x",
             "rm -r src/",
             "rm -f important.txt",
             "rm -Rf ./dist",
-            // shell/interpreter subshells with inline scripts
+            // shells/interpreters, both inline and script execution paths
+            "bash ./scripts/release.sh",
             "bash -c 'rm -rf /'",
+            "sh ./scripts/nightly.sh",
             "sh -c 'pwd'",
+            "python3 ./scripts/check_release_config.sh",
             "python3 -c 'print(1)'",
+            "awk 'BEGIN{system(\"touch /tmp/pwn\")}'",
             "perl -e 'print 1'",
             "ruby -e 'print 1'",
             "node -e 'console.log(1)'",

@@ -3451,7 +3451,30 @@ fn copilot_save_github_token(github_token: &str) -> anyhow::Result<()> {
         "copilot_expires_at": 0
     });
     let bytes = serde_json::to_vec_pretty(&auth).unwrap_or_default();
-    std::fs::write(&path, &bytes).with_context(|| format!("write {}", path.display()))?;
+
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .mode(0o600)
+            .open(&path)
+            .with_context(|| format!("open {}", path.display()))?;
+        file.write_all(&bytes)
+            .with_context(|| format!("write {}", path.display()))?;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            .with_context(|| format!("chmod 600 {}", path.display()))?;
+    }
+
+    #[cfg(not(unix))]
+    {
+        std::fs::write(&path, &bytes).with_context(|| format!("write {}", path.display()))?;
+    }
+
     Ok(())
 }
 

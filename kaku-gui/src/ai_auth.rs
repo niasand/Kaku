@@ -6,7 +6,7 @@
 //! Codex: reads the access token written by the Codex CLI into ~/.codex/auth.json.
 
 use anyhow::{Context, Result};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const COPILOT_TOKEN_URL: &str = "https://api.github.com/copilot_internal/v2/token";
@@ -49,7 +49,36 @@ fn save_copilot_auth(auth: &CopilotAuthFile) -> Result<()> {
     let path = copilot_auth_file_path()
         .ok_or_else(|| anyhow::anyhow!("cannot determine copilot auth path"))?;
     let json = serde_json::to_vec_pretty(auth).context("serialize copilot auth")?;
-    std::fs::write(&path, &json).with_context(|| format!("write {}", path.display()))?;
+    write_secret_file(&path, &json).with_context(|| format!("write {}", path.display()))?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn write_secret_file(path: &Path, bytes: &[u8]) -> Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+    }
+
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(path)?;
+    file.write_all(bytes)?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn write_secret_file(path: &Path, bytes: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+    }
+    std::fs::write(path, bytes)?;
     Ok(())
 }
 
