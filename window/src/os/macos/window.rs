@@ -4936,18 +4936,25 @@ impl WindowView {
             let live_resizing = inner.live_resizing;
             let screen_changed = std::mem::take(&mut inner.screen_changed);
 
-            // Note: isZoomed can falsely return YES in situations such as
-            // the current screen changing. Suppress it when screen_changed
-            // is true; the correct state will be reported on the next resize
-            // event once the screen reference has settled.
+            // Note: isZoomed can falsely return YES during screen changes.
+            // When screen_changed is true, carry forward the prior MAXIMIZED
+            // state instead of querying isZoomed (which may give stale results
+            // for the old screen frame). This avoids both false positives and
+            // the prior bug where a truly maximized window lost its state
+            // permanently after moving to another screen.
             // <https://github.com/wezterm/wezterm/issues/3503>
             // <https://github.com/tw93/Kaku/issues/131>
-            let is_zoomed = !is_full_screen
-                && !screen_changed
-                && inner.window.as_ref().map_or(false, |window| {
-                    let window = window.load();
-                    unsafe { msg_send![*window, isZoomed] }
-                });
+            let is_zoomed = if screen_changed {
+                inner
+                    .last_reported_window_state
+                    .contains(WindowState::MAXIMIZED)
+            } else {
+                !is_full_screen
+                    && inner.window.as_ref().map_or(false, |window| {
+                        let window = window.load();
+                        unsafe { msg_send![*window, isZoomed] }
+                    })
+            };
 
             let window_level = inner
                 .window
