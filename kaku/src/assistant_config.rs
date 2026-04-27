@@ -20,6 +20,7 @@ pub const DEFAULT_CHAT_MODEL: &str = "gpt-5.4";
 pub const DEFAULT_BASE_URL: &str = "https://api.openai.com/v1";
 
 /// A provider preset with its API base URL and available models.
+#[allow(dead_code)]
 pub struct ProviderPreset {
     /// Display name for the provider.
     pub name: &'static str,
@@ -32,9 +33,9 @@ pub struct ProviderPreset {
 }
 
 /// Built-in provider presets for the Kaku Assistant.
-/// To add a new provider: add an entry here. The TUI and provider detection
-/// derive everything (base_url, model list, auto-fill on selection) from this
-/// table via provider_preset() and detect_provider(). No other changes needed.
+/// To add a new provider: add an entry here. Provider detection derives everything
+/// (base_url, model list, auth_type) from this table. No other changes needed.
+#[allow(dead_code)]
 pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
     ProviderPreset {
         name: "Copilot",
@@ -62,23 +63,11 @@ pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
     },
 ];
 
-/// Returns the provider preset matching the given name, if any.
-pub fn provider_preset(name: &str) -> Option<&'static ProviderPreset> {
-    PROVIDER_PRESETS.iter().find(|p| p.name == name)
-}
-
-/// Returns all provider preset names as a `Vec<String>`.
-pub fn provider_names() -> Vec<String> {
-    PROVIDER_PRESETS
-        .iter()
-        .map(|p| p.name.to_string())
-        .collect()
-}
-
 /// Detects the provider name from a base URL.
 ///
 /// Returns the matching preset name if the base URL matches a known provider,
 /// or `"Custom"` otherwise.
+#[allow(dead_code)]
 pub fn detect_provider(base_url: &str) -> &'static str {
     detect_provider_with_auth(base_url, "api_key")
 }
@@ -87,6 +76,7 @@ pub fn detect_provider(base_url: &str) -> &'static str {
 ///
 /// Codex shares the OpenAI base URL (`https://api.openai.com/v1`);
 /// pass `auth_type = "codex"` to get "Codex" back instead of "Custom".
+#[allow(dead_code)]
 pub fn detect_provider_with_auth(base_url: &str, auth_type: &str) -> &'static str {
     let normalized = base_url.trim().trim_end_matches('/').to_ascii_lowercase();
     for preset in PROVIDER_PRESETS {
@@ -396,22 +386,6 @@ mod tests {
     fn detect_provider_returns_custom_for_unknown_urls() {
         assert_eq!(detect_provider("https://my-proxy.example.com/v1"), "Custom");
         assert_eq!(detect_provider(""), "Custom");
-    }
-
-    #[test]
-    fn provider_preset_lookup_returns_none_for_unknown() {
-        assert!(provider_preset("UnknownProvider").is_none());
-        assert!(provider_preset("OpenAI").is_none());
-    }
-
-    #[test]
-    fn provider_names_includes_all_presets() {
-        let names = provider_names();
-        assert!(!names.contains(&"OpenAI".to_string()));
-        assert!(names.contains(&"Copilot".to_string()));
-        assert!(names.contains(&"Codex".to_string()));
-        assert!(names.contains(&"Gemini".to_string()));
-        assert!(names.contains(&"Custom".to_string()));
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use ratatui::layout::{Constraint, Layout, Margin, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
 
 use super::{App, Tool};
 use crate::tui_core::theme::{accent, bg, muted, panel, primary, red, success, text_fg};
@@ -90,7 +90,6 @@ pub(super) fn ui(frame: &mut ratatui::Frame, app: &mut App) {
     } else if app.is_editing() {
         render_editor(frame, area, app);
     }
-    render_toast(frame, area, app);
 }
 
 fn resolve_main_layout(area_height: u16, content_rows: u16) -> MainLayoutMode {
@@ -372,40 +371,6 @@ fn render_status_hint(width: u16) -> Line<'static> {
     }
 }
 
-fn render_toast(frame: &mut ratatui::Frame, area: Rect, app: &App) {
-    let Some(message) = app.toast_message() else {
-        return;
-    };
-    if area.width < 24 || area.height < 6 {
-        return;
-    }
-
-    let width = ((message.chars().count() as u16) + 6)
-        .min(area.width.saturating_sub(2))
-        .max(28);
-    let height = 3;
-    let popup = Rect::new(
-        area.x + area.width.saturating_sub(width + 1),
-        area.y + area.height.saturating_sub(height + 2),
-        width,
-        height,
-    );
-
-    frame.render_widget(Clear, popup);
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(primary()))
-        .style(Style::default().bg(panel()));
-    let inner = block.inner(popup).inner(Margin::new(1, 0));
-    frame.render_widget(block, popup);
-    frame.render_widget(
-        Paragraph::new(message)
-            .style(Style::default().fg(text_fg()))
-            .wrap(Wrap { trim: true }),
-        inner,
-    );
-}
 
 pub(super) fn render_editor(frame: &mut ratatui::Frame, area: Rect, app: &App) {
     let Some(tool) = app.tools.get(app.tool_index) else {
