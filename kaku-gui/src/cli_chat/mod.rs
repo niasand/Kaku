@@ -147,6 +147,50 @@ fn run_one_shot(engine: &mut Engine, prompt: String) -> anyhow::Result<()> {
 
 // ── TUI REPL (alternate screen) ───────────────────────────────────────────────
 
+#[derive(Clone, Copy)]
+struct ThemeColors {
+    header_bg: ColorAttribute,
+    header_fg: ColorAttribute,
+    user_label: ColorAttribute,
+    ai_label: ColorAttribute,
+    system_text: ColorAttribute,
+    separator: ColorAttribute,
+}
+
+fn detect_theme() -> ThemeColors {
+    let is_dark = detect_dark_mode();
+    if is_dark {
+        ThemeColors {
+            header_bg: ColorAttribute::PaletteIndex(8), // bright black / dark gray
+            header_fg: ColorAttribute::PaletteIndex(AnsiColor::White as u8),
+            user_label: ColorAttribute::PaletteIndex(AnsiColor::Lime as u8),
+            ai_label: ColorAttribute::PaletteIndex(AnsiColor::Aqua as u8),
+            system_text: ColorAttribute::PaletteIndex(AnsiColor::Grey as u8),
+            separator: ColorAttribute::PaletteIndex(8),
+        }
+    } else {
+        ThemeColors {
+            header_bg: ColorAttribute::PaletteIndex(AnsiColor::White as u8),
+            header_fg: ColorAttribute::PaletteIndex(AnsiColor::Black as u8),
+            user_label: ColorAttribute::PaletteIndex(AnsiColor::Green as u8),
+            ai_label: ColorAttribute::PaletteIndex(AnsiColor::Teal as u8),
+            system_text: ColorAttribute::PaletteIndex(AnsiColor::Grey as u8),
+            separator: ColorAttribute::PaletteIndex(AnsiColor::Grey as u8),
+        }
+    }
+}
+
+fn detect_dark_mode() -> bool {
+    // COLORFGBG is "fg;bg" where bg < 7 typically means dark background.
+    if let Ok(val) = std::env::var("COLORFGBG") {
+        if let Some(bg) = val.rsplit(';').next().and_then(|s| s.parse::<u8>().ok()) {
+            return bg < 7;
+        }
+    }
+    // Most modern terminals default to dark; assume dark when unknown.
+    true
+}
+
 #[derive(Clone)]
 enum KMsg {
     User(String),
@@ -169,13 +213,14 @@ struct Tui {
     scroll_offset: usize,
     cols: usize,
     rows: usize,
+    theme: ThemeColors,
 }
 
 impl Tui {
     fn new(cols: usize, rows: usize) -> Self {
         Self {
             messages: vec![KMsg::System(
-                "k — /new  /resume [id]  /clear  /status  /memory  /exit".into(),
+                "k -- /new  /resume [id]  /clear  /status  /memory  /exit".into(),
             )],
             input: String::new(),
             input_cursor: 0,
@@ -187,6 +232,7 @@ impl Tui {
             scroll_offset: 0,
             cols,
             rows,
+            theme: detect_theme(),
         }
     }
 
@@ -224,30 +270,22 @@ impl Tui {
     fn all_display_lines(&self) -> Vec<(ColorAttribute, String)> {
         let inner_w = self.cols.saturating_sub(2);
         let mut out: Vec<(ColorAttribute, String)> = Vec::new();
+        let theme = &self.theme;
 
         for msg in &self.messages {
             match msg {
                 KMsg::System(s) => {
-                    out.push((
-                        ColorAttribute::PaletteIndex(AnsiColor::Grey as u8),
-                        format!("  {}", s),
-                    ));
+                    out.push((theme.system_text, format!("  {}", s)));
                 }
                 KMsg::User(s) => {
-                    out.push((
-                        ColorAttribute::PaletteIndex(AnsiColor::Lime as u8),
-                        "  You".to_string(),
-                    ));
+                    out.push((theme.user_label, "  You".to_string()));
                     for line in Self::wrap(s, inner_w.saturating_sub(2)) {
                         out.push((ColorAttribute::Default, format!("  {}", line)));
                     }
                     out.push((ColorAttribute::Default, String::new()));
                 }
                 KMsg::Ai(s) => {
-                    out.push((
-                        ColorAttribute::PaletteIndex(AnsiColor::Aqua as u8),
-                        "  AI".to_string(),
-                    ));
+                    out.push((theme.ai_label, "  AI".to_string()));
                     for line in Self::wrap(s, inner_w.saturating_sub(2)) {
                         out.push((ColorAttribute::Default, format!("  {}", line)));
                     }
@@ -258,10 +296,7 @@ impl Tui {
 
         // Streaming partial.
         if self.is_streaming || !self.streaming_buf.is_empty() {
-            out.push((
-                ColorAttribute::PaletteIndex(AnsiColor::Aqua as u8),
-                "  AI".to_string(),
-            ));
+            out.push((theme.ai_label, "  AI".to_string()));
             for line in Self::wrap(&self.streaming_buf, inner_w.saturating_sub(2)) {
                 out.push((ColorAttribute::Default, format!("  {}", line)));
             }
@@ -369,20 +404,19 @@ fn render_tui(term: &mut dyn Terminal, tui: &Tui) -> termwiz::Result<()> {
     changes.push(Change::ClearScreen(ColorAttribute::Default));
 
     // Header row.
+    let theme = &tui.theme;
     changes.push(Change::CursorPosition {
         x: Position::Absolute(0),
         y: Position::Absolute(0),
     });
     changes.push(Change::AllAttributes({
         let mut a = CellAttributes::default();
-        a.set_background(ColorAttribute::PaletteIndex(AnsiColor::Navy as u8));
-        a.set_foreground(ColorAttribute::PaletteIndex(AnsiColor::White as u8));
+        a.set_background(theme.header_bg);
+        a.set_foreground(theme.header_fg);
         a
     }));
     let header = format!(" k  AI Chat {}", " ".repeat(cols.saturating_sub(10)));
-    changes.push(Change::Text(
-        header[..header.chars().count().min(cols)].to_string(),
-    ));
+    changes.push(Change::Text(truncate_to_chars(&header, cols)));
 
     // Message area: rows 1 .. rows-2.
     let display_rows = rows.saturating_sub(3);
@@ -399,9 +433,7 @@ fn render_tui(term: &mut dyn Terminal, tui: &Tui) -> termwiz::Result<()> {
         attr.set_foreground(*color);
         changes.push(Change::AllAttributes(attr));
         let padded = format!("{:<width$}", text, width = cols);
-        changes.push(Change::Text(
-            padded[..padded.chars().count().min(cols)].to_string(),
-        ));
+        changes.push(Change::Text(truncate_to_chars(&padded, cols)));
     }
 
     // Separator row.
@@ -412,7 +444,7 @@ fn render_tui(term: &mut dyn Terminal, tui: &Tui) -> termwiz::Result<()> {
     });
     changes.push(Change::AllAttributes({
         let mut a = CellAttributes::default();
-        a.set_foreground(ColorAttribute::PaletteIndex(AnsiColor::Grey as u8));
+        a.set_foreground(theme.separator);
         a
     }));
     changes.push(Change::Text("─".repeat(cols)));
@@ -427,9 +459,7 @@ fn render_tui(term: &mut dyn Terminal, tui: &Tui) -> termwiz::Result<()> {
     let prompt_prefix = "> ";
     let display_input = format!("{}{}", prompt_prefix, tui.input);
     let padded_input = format!("{:<width$}", display_input, width = cols);
-    changes.push(Change::Text(
-        padded_input[..padded_input.chars().count().min(cols)].to_string(),
-    ));
+    changes.push(Change::Text(truncate_to_chars(&padded_input, cols)));
 
     // Place cursor in input row.
     let cursor_x = (prompt_prefix.len() + tui.input_cursor).min(cols.saturating_sub(1));
@@ -738,6 +768,10 @@ fn char_to_byte(s: &str, char_idx: usize) -> usize {
         .unwrap_or(s.len())
 }
 
+fn truncate_to_chars(s: &str, max_chars: usize) -> String {
+    s.chars().take(max_chars).collect()
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn print_recent_conversations() {
@@ -756,4 +790,17 @@ fn print_recent_conversations() {
         eprintln!("  {}  {}  {}", i + 1, c.id, summary);
     }
     eprintln!("Use /resume <id> to switch.");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_to_chars;
+
+    #[test]
+    fn truncate_to_chars_handles_utf8_boundaries() {
+        let s = "k 你好 world";
+        assert_eq!(truncate_to_chars(s, 0), "");
+        assert_eq!(truncate_to_chars(s, 3), "k 你");
+        assert_eq!(truncate_to_chars(s, 5), "k 你好 ");
+    }
 }
