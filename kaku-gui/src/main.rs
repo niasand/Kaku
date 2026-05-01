@@ -119,6 +119,7 @@ mod startup_trace;
 mod stats;
 mod tabbar;
 mod termwindow;
+mod thread_util;
 mod unicode_names;
 mod uniforms;
 mod update;
@@ -683,7 +684,7 @@ fn spawn_mux_server(unix_socket_path: PathBuf, should_publish: bool) -> anyhow::
             socket_path: Some(unix_socket_path.clone()),
             ..Default::default()
         })?;
-    std::thread::spawn(move || {
+    crate::thread_util::spawn_with_pool(move || {
         let name_holder;
         if should_publish {
             name_holder = wezterm_client::discovery::publish_gui_sock_path(

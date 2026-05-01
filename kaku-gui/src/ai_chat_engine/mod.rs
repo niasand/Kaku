@@ -589,7 +589,7 @@ impl Engine {
         let cwd = self.cwd.clone();
         let conv_id = self.active_id.clone();
 
-        std::thread::spawn(move || {
+        crate::thread_util::spawn_with_pool(move || {
             run_agent(client, model, api_messages, tools, cwd, conv_id, cancel, tx);
         });
 
@@ -613,7 +613,7 @@ impl Engine {
         let client = self.client.clone();
         let messages = self.messages.clone();
         let active_id = self.active_id.clone();
-        std::thread::spawn(move || {
+        crate::thread_util::spawn_with_pool(move || {
             if let Ok(summary) = generate_summary(&client, &messages) {
                 let _ = ai_conversations::update_summary(&active_id, &summary);
             }

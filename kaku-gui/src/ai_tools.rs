@@ -61,7 +61,7 @@ fn pump_reader_capped<R: Read + Send + 'static>(
     bytes_total: Arc<AtomicUsize>,
     cap: usize,
 ) -> std::thread::JoinHandle<()> {
-    std::thread::spawn(move || {
+    crate::thread_util::spawn_with_pool(move || {
         let mut r = reader;
         let mut chunk = [0u8; 4096];
         loop {
@@ -1874,7 +1874,7 @@ fn exec_symbol_search(
         .ok_or_else(|| anyhow::anyhow!("symbol_search stdout missing"))?;
     let collected = Arc::new(Mutex::new(Vec::<u8>::new()));
     let collected_clone = collected.clone();
-    let reader_thread = std::thread::spawn(move || {
+    let reader_thread = crate::thread_util::spawn_with_pool(move || {
         let mut r = stdout_pipe;
         let mut buf = [0u8; 8192];
         loop {
@@ -2031,7 +2031,7 @@ fn exec_grep_search(
     // denied while walking directories, etc.). Keep only the first 512 bytes.
     let stderr_buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::with_capacity(512)));
     let stderr_buf_clone = stderr_buf.clone();
-    let stderr_handle = std::thread::spawn(move || {
+    let stderr_handle = crate::thread_util::spawn_with_pool(move || {
         let mut err = stderr;
         let mut chunk = [0u8; 512];
         loop {
@@ -2058,7 +2058,7 @@ fn exec_grep_search(
     let mc = match_count.clone();
     let tf = truncated_flag.clone();
     let max = max_results;
-    let reader_handle = std::thread::spawn(move || {
+    let reader_handle = crate::thread_util::spawn_with_pool(move || {
         let reader = std::io::BufReader::new(stdout);
         for line_result in reader.lines() {
             let line = match line_result {
@@ -2387,6 +2387,7 @@ mod tests {
             web_search_provider: None,
             web_search_api_key: None,
             web_fetch_script: None,
+            fast_model: None,
             memory_curator_model: None,
         }
     }

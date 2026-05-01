@@ -409,18 +409,26 @@ impl App {
         context: TerminalContext,
         chat_model: String,
         chat_model_choices: Vec<String>,
+        fast_model: Option<String>,
         cols: usize,
         rows: usize,
         client: AiClient,
     ) -> Self {
-        // If the user provided a curated list, use it directly and skip the fetch.
-        // Otherwise, seed with the cached model list from the previous session (if any)
-        // and refresh from /v1/models in the background so the overlay is instantly ready.
+        // Model resolution priority:
+        // 1. chat_model_choices: user-curated list, use as-is
+        // 2. fast_model set and different from chat_model: two-slot mode, no API fetch
+        // 3. Neither: fall back to API fetch for full model list
         let (available_models, model_fetch, model_fetch_rx) = if !chat_model_choices.is_empty() {
             let mut models = chat_model_choices;
             models.retain(|m| m != &chat_model);
             models.insert(0, chat_model);
             (models, ModelFetch::Loaded, None)
+        } else if let Some(ref fm) = fast_model {
+            if fm != &chat_model {
+                (vec![chat_model, fm.clone()], ModelFetch::Loaded, None)
+            } else {
+                (vec![chat_model], ModelFetch::Loaded, None)
+            }
         } else {
             let cached = crate::ai_state::load_cached_models();
             let initial_models = if cached.is_empty() {
@@ -439,7 +447,7 @@ impl App {
             let (tx, rx) = mpsc::channel::<Result<Vec<String>, String>>();
             let fetch_client = client.clone();
             let chat_model_clone = chat_model.clone();
-            std::thread::spawn(move || {
+            crate::thread_util::spawn_with_pool(move || {
                 let result = fetch_client.list_models().map_err(|e| e.to_string());
                 if let Ok(ref models) = result {
                     let mut to_save = models.clone();
@@ -1580,7 +1588,7 @@ impl App {
             vec![]
         };
 
-        std::thread::spawn(move || {
+        crate::thread_util::spawn_with_pool(move || {
             run_agent(
                 client,
                 model,
@@ -1809,7 +1817,7 @@ impl App {
                     None
                 };
 
-                std::thread::spawn(move || {
+                crate::thread_util::spawn_with_pool(move || {
                     if let Some(reply) = bootstrap_reply {
                         crate::soul::bootstrap_from_onboarding(&client, &reply);
                     }
@@ -1902,7 +1910,7 @@ impl App {
         let client = self.client.clone();
         let old_id = self.active_id.clone();
         let msgs_clone = msgs.clone();
-        std::thread::spawn(move || {
+        crate::thread_util::spawn_with_pool(move || {
             if let Ok(summary) = generate_summary(&client, &msgs_clone) {
                 if !summary.is_empty() {
                     if let Err(e) = ai_conversations::update_summary(&old_id, &summary) {
@@ -2016,16 +2024,19 @@ impl App {
         } else {
             cfg.chat_model_choices.join(", ")
         };
+        let fast = cfg.fast_model.as_deref().unwrap_or("(not set)");
         let web_search = cfg.web_search_provider.as_deref().unwrap_or("disabled");
         let text = format!(
             "provider          {provider}\n\
              chat_model        {model}\n\
+             fast_model        {fast}\n\
              chat_model_choices {choices}\n\
              base_url          {url}\n\
              chat_tools_enabled {tools}\n\
              web_search        {ws}",
             provider = cfg.provider,
             model = cfg.chat_model,
+            fast = fast,
             choices = model_list,
             url = cfg.base_url,
             tools = cfg.chat_tools_enabled,
@@ -2104,7 +2115,7 @@ impl App {
         let cwd = self.context.cwd.clone();
         let conv_id = self.active_id.clone();
 
-        std::thread::spawn(move || {
+        crate::thread_util::spawn_with_pool(move || {
             run_agent(
                 client,
                 model,
@@ -2163,7 +2174,7 @@ impl App {
             let client = self.client.clone();
             let old_id = self.active_id.clone();
             let msgs_clone = current.clone();
-            std::thread::spawn(move || {
+            crate::thread_util::spawn_with_pool(move || {
                 if let Ok(summary) = generate_summary(&client, &msgs_clone) {
                     if !summary.is_empty() {
                         let _ = ai_conversations::update_summary(&old_id, &summary);
@@ -2751,14 +2762,19 @@ fn render_chat(term: &mut TermWizTerminal, app: &App) -> termwiz::Result<()> {
         let suffix = match &app.model_fetch {
             ModelFetch::Loading => format!(" · {} loading…", app.spinner_char()),
             ModelFetch::Failed(_) => " · (list failed)".to_string(),
-            ModelFetch::Loaded if app.available_models.len() > 1 => {
+            ModelFetch::Loaded if app.available_models.len() > 2 => {
                 format!(" ({}/{})", app.model_index + 1, app.available_models.len())
             }
             _ => String::new(),
         };
         format!("{}{}", app.current_model(), suffix)
     };
-    let title = format!(" Kaku AI • {} · ⇧⇥ switch · ESC exit ", model_display);
+    let has_switch = app.available_models.len() > 1;
+    let title = if has_switch {
+        format!(" Kaku AI • {} · ⇧⇥ switch · ESC exit ", model_display)
+    } else {
+        format!(" Kaku AI • {} · ESC exit ", model_display)
+    };
     let title_width = unicode_column_width(&title, None);
     let border_fill = inner_w.saturating_sub(title_width);
     let top_line = format!("╭─{}{}─╮", title, "─".repeat(border_fill.saturating_sub(2)));
@@ -3592,8 +3608,9 @@ pub fn ai_chat_overlay(
 
     let chat_model = client_cfg.chat_model.clone();
     let chat_model_choices = client_cfg.chat_model_choices.clone();
+    let fast_model = client_cfg.fast_model.clone();
     let client = AiClient::new(client_cfg);
-    let mut app = App::new(context, chat_model, chat_model_choices, cols, rows, client);
+    let mut app = App::new(context, chat_model, chat_model_choices, fast_model, cols, rows, client);
     let mut needs_redraw = true;
 
     app.display_lines_dirty = true;
@@ -3961,7 +3978,7 @@ fn copy_to_clipboard(text: &str) {
     use std::process::{Command, Stdio};
 
     let text = text.to_string();
-    std::thread::spawn(move || {
+    crate::thread_util::spawn_with_pool(move || {
         let mut child = match Command::new("pbcopy").stdin(Stdio::piped()).spawn() {
             Ok(c) => c,
             Err(e) => {

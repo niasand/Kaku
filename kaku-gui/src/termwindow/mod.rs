@@ -4868,7 +4868,7 @@ impl TermWindow {
                                 target.line,
                                 target.col
                             );
-                            std::thread::spawn(move || {
+                            crate::thread_util::spawn_with_pool(move || {
                                 if let Err(err) = TermWindow::open_file_link_target(&target) {
                                     log::warn!(
                                         "Failed to open file link target {:?}: {err:#}",
