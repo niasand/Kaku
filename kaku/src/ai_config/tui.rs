@@ -3431,22 +3431,32 @@ fn get_gemini_account() -> Option<String> {
     parsed.get("active")?.as_str().map(|s| s.to_string())
 }
 
-/// Get Codex account email from JWT token in auth.json
-fn get_codex_account() -> Option<String> {
+/// Get Codex account email and ChatGPT plan tier from the JWT token in
+/// `auth.json`. Plan is `None` for non-ChatGPT-tied tokens (e.g. enterprise
+/// API keys) so the caller can omit the trailing "· Plan" suffix.
+fn get_codex_account() -> Option<(String, Option<String>)> {
     let auth_path = config::HOME_DIR.join(".codex").join("auth.json");
     let auth_json = read_json_file_with_debug(&auth_path, "codex account")?;
 
-    // Extract access_token from tokens object
     let token = auth_json.get("tokens")?.get("access_token")?.as_str()?;
-
     let jwt_data = decode_jwt_payload_with_debug(token, "codex account")?;
 
-    // OpenAI JWT payload contains email in custom claim
-    jwt_data
+    let email = jwt_data
         .get("https://api.openai.com/profile")?
         .get("email")?
-        .as_str()
-        .map(|s| s.to_string())
+        .as_str()?
+        .to_string();
+
+    // ChatGPT plan lives in the OpenAI auth claim. Field examples observed:
+    // "free", "plus", "pro", "team", "enterprise", "edu".
+    let plan = jwt_data
+        .get("https://api.openai.com/auth")
+        .and_then(|v| v.get("chatgpt_plan_type"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
+    Some((email, plan))
 }
 
 /// Get GitHub Copilot username from gh CLI
@@ -3529,9 +3539,15 @@ fn parse_claude_auth_status(parsed: &serde_json::Value) -> Option<String> {
         .and_then(|value| value.as_str())
         .filter(|value| !value.is_empty())
         .unwrap_or("oauth");
+    // `subscriptionType` is e.g. "max" / "pro"; render as " · Max" / " · Pro"
+    // suffix when present.
+    let plan = parsed
+        .get("subscriptionType")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.is_empty());
 
     if logged_in == Some(true) || account.is_some() {
-        Some(format_auth_status(account, auth_method))
+        Some(format_auth_status(account, auth_method, plan))
     } else {
         None
     }
@@ -3541,7 +3557,9 @@ fn read_claude_auth_status() -> Option<String> {
     read_claude_auth_status_json()
         .as_ref()
         .and_then(parse_claude_auth_status)
-        .or_else(|| read_claude_oauth_access_token().map(|_| format_auth_status(None, "oauth")))
+        .or_else(|| {
+            read_claude_oauth_access_token().map(|_| format_auth_status(None, "oauth", None))
+        })
 }
 
 fn kimi_credentials_path() -> PathBuf {
@@ -3591,11 +3609,38 @@ fn read_kimi_auth_status() -> String {
     read_kimi_auth_status_from_path(&kimi_credentials_path())
 }
 
-/// Format auth status, with account fallback to auth method
-fn format_auth_status(account: Option<String>, fallback_method: &str) -> String {
-    match account {
+/// Format auth status, with account fallback to auth method.
+///
+/// `plan` is optional and surfaced as a trailing `· Max` / `· Pro` suffix
+/// when the provider exposes a subscription tier (Claude
+/// `subscriptionType`, Codex JWT `chatgpt_plan_type`). Other providers pass
+/// `None` and render unchanged.
+fn format_auth_status(
+    account: Option<String>,
+    fallback_method: &str,
+    plan: Option<&str>,
+) -> String {
+    let mut out = match account {
         Some(acc) if !acc.is_empty() => format!("✓ {}", acc),
         _ => format!("✓ {}", fallback_method),
+    };
+    if let Some(plan) = plan {
+        let label = title_case_first(plan.trim());
+        if !label.is_empty() {
+            out.push_str(" · ");
+            out.push_str(&label);
+        }
+    }
+    out
+}
+
+/// Capitalize the first character; rest unchanged. Used to render
+/// provider-supplied plan strings like `max` / `pro` as `Max` / `Pro`.
+fn title_case_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
     }
 }
 
@@ -3844,10 +3889,13 @@ fn extract_codex_fields(raw: &str) -> Vec<FieldEntry> {
     if let Some(auth) = read_json_file_with_debug(&auth_path, "codex auth status") {
         let auth_mode = auth.get("auth_mode").and_then(|v| v.as_str()).unwrap_or("");
         if !auth_mode.is_empty() {
-            let account = get_codex_account();
+            let (account, plan) = match get_codex_account() {
+                Some((email, plan)) => (Some(email), plan),
+                None => (None, None),
+            };
             fields.push(FieldEntry {
                 key: "Auth".into(),
-                value: format_auth_status(account, auth_mode),
+                value: format_auth_status(account, auth_mode, plan.as_deref()),
                 options: vec![],
                 editable: false,
             });
@@ -3928,7 +3976,7 @@ fn extract_antigravity_fields(snapshot: Option<&AntigravityUsageSnapshot>) -> Ve
     if auth.is_some() {
         fields.push(FieldEntry {
             key: "Auth".into(),
-            value: format_auth_status(account, "oauth"),
+            value: format_auth_status(account, "oauth", None),
             options: vec![],
             editable: false,
         });
@@ -4011,7 +4059,7 @@ fn extract_gemini_fields(val: &serde_json::Value) -> Vec<FieldEntry> {
         let account = get_gemini_account();
         fields.push(FieldEntry {
             key: "Auth".into(),
-            value: format_auth_status(account, auth_type),
+            value: format_auth_status(account, auth_type, None),
             options: vec![],
             editable: false,
         });
@@ -4086,7 +4134,7 @@ fn extract_copilot_fields(val: &serde_json::Value) -> Vec<FieldEntry> {
         let account = get_copilot_account();
         fields.push(FieldEntry {
             key: "Auth".into(),
-            value: format_auth_status(account, "github"),
+            value: format_auth_status(account, "github", None),
             options: vec![],
             editable: false,
         });
@@ -4913,7 +4961,15 @@ impl App {
                 self.set_error(format!("Save failed: {}", e));
             }
         }
-        self.reload_current_tool();
+        // Selecting Web Search adds/removes the Search Key row, so prefer
+        // landing on it when present so the user can immediately fill in the
+        // key. For all other fields focus stays on the row just edited.
+        let focus_key = if field_key == "Web Search" && new_val != "none" {
+            "Search Key"
+        } else {
+            field_key.as_str()
+        };
+        self.reload_current_tool_focusing(Some(focus_key));
     }
 
     fn cancel_select(&mut self) {
@@ -4967,21 +5023,44 @@ impl App {
                 self.set_error(format!("Save failed: {}", e));
             }
         }
-        self.reload_current_tool();
+        // Keep the cursor on the row just edited after the disk reload, so
+        // the user does not lose their place.
+        self.reload_current_tool_focusing(Some(field_key.as_str()));
     }
 
-    fn reload_current_tool(&mut self) {
+    /// Reload the active tool's fields from disk. When `focus_key` is set,
+    /// move the selection cursor to the field with that key in the refreshed
+    /// list. This is what makes "select Web Search → brave" leave the cursor
+    /// on the freshly-revealed Search Key row instead of jumping back to the
+    /// tool header at the top.
+    ///
+    /// `focus_key` falls back gracefully: if the named key no longer exists
+    /// after reload (e.g. user picked "none" so Search Key disappeared), we
+    /// keep the cursor on the *editor* row that triggered the reload by
+    /// using its old position as a hint and clamping into bounds.
+    fn reload_current_tool_focusing(&mut self, focus_key: Option<&str>) {
         let Some(tool_type) = self.current_tool().map(|tool| tool.tool) else {
             return;
         };
+        let prior_field_idx = self.selected_field_index();
         let refreshed = ToolState::load_without_remote_usage(tool_type);
         if let Some(tool) = self.current_tool_mut() {
             *tool = refreshed;
         }
         if tool_type == Tool::KakuAssistant {
             self.assistant_collapsed = false;
-            self.field_index = 0;
         }
+        let Some(tool) = self.current_tool() else {
+            return;
+        };
+        let new_field_idx = focus_key
+            .and_then(|key| tool.fields.iter().position(|f| f.key == key))
+            .or_else(|| prior_field_idx.and_then(|p| (p < tool.fields.len()).then_some(p)));
+        self.field_index = match new_field_idx {
+            Some(idx) => self.display_index_for_field(tool_type, idx),
+            None if tool_type == Tool::KakuAssistant => 0,
+            None => 0,
+        };
         self.schedule_usage_reload(tool_type);
     }
 
@@ -5462,6 +5541,17 @@ pub fn run(
     }
 
     let mut guard = TerminalGuard::new();
+    // Load config synchronously *before* entering the alternate screen so
+    // the user does not stare at a blank black buffer during cold load.
+    // On warm cache this is <50 ms; on cold cache it can be ~1 s but the
+    // user still sees their existing terminal until the TUI is ready to
+    // paint, which is less jarring than a flash of "Loading..." that gets
+    // overwritten 100 ms later.
+    if let Err(e) = config::common_init(config_file.as_ref(), &config_override, skip_config) {
+        log::error!("config init failed: {:#}", e);
+    }
+    let mut app = App::new();
+
     enable_raw_mode().context("enable raw mode")?;
     guard.raw_mode = true;
     let mut stdout = io::stdout();
@@ -5474,32 +5564,6 @@ pub fn run(
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).context("create terminal")?;
 
-    const SPINNER: [char; 4] = ['◐', '◓', '◑', '◒'];
-
-    terminal
-        .draw(|f| crate::tui_splash::render_splash_with_spinner(f, "Loading...", SPINNER[0]))
-        .context("draw loading screen")?;
-
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        if let Err(e) = config::common_init(config_file.as_ref(), &config_override, skip_config) {
-            log::error!("config init failed: {:#}", e);
-        }
-        tx.send(App::new()).ok();
-    });
-
-    let mut tick = 0usize;
-    let mut app = loop {
-        if let Ok(app) = rx.try_recv() {
-            break app;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-        tick += 1;
-        let spinner = SPINNER[tick % SPINNER.len()];
-        terminal
-            .draw(|f| crate::tui_splash::render_splash_with_spinner(f, "Loading...", spinner))
-            .ok();
-    };
     let result = run_loop(&mut terminal, &mut app);
 
     terminal.show_cursor().context("show cursor")?;
@@ -6761,6 +6825,50 @@ provider = "managed:kimi-code"
         assert_eq!(
             parse_claude_auth_status(&parsed),
             Some("✗ not signed in".into())
+        );
+    }
+
+    #[test]
+    fn claude_auth_status_appends_subscription_tier() {
+        // Real `claude auth status` output shape (Max + Pro + lowercase pro).
+        for (tier, want) in [
+            ("max", "✓ user@example.com · Max"),
+            ("pro", "✓ user@example.com · Pro"),
+            ("plus", "✓ user@example.com · Plus"),
+        ] {
+            let parsed = serde_json::json!({
+                "loggedIn": true,
+                "authMethod": "claude.ai",
+                "email": "user@example.com",
+                "subscriptionType": tier,
+            });
+            assert_eq!(
+                parse_claude_auth_status(&parsed).as_deref(),
+                Some(want),
+                "tier={tier}"
+            );
+        }
+    }
+
+    #[test]
+    fn format_auth_status_handles_optional_plan() {
+        assert_eq!(
+            format_auth_status(Some("foo@bar".to_string()), "oauth", None),
+            "✓ foo@bar"
+        );
+        assert_eq!(
+            format_auth_status(Some("foo@bar".to_string()), "oauth", Some("max")),
+            "✓ foo@bar · Max"
+        );
+        // Empty plan string is treated as no plan.
+        assert_eq!(
+            format_auth_status(Some("foo@bar".to_string()), "oauth", Some("")),
+            "✓ foo@bar"
+        );
+        // Account missing → falls back to method, plan still appended.
+        assert_eq!(
+            format_auth_status(None, "github", Some("pro")),
+            "✓ github · Pro"
         );
     }
 
