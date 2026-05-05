@@ -1078,6 +1078,16 @@ impl Mux {
             .insert(sub_id, Arc::new(subscriber));
     }
 
+    /// Fan out `notification` to every subscriber.
+    ///
+    /// Subscribers receive `&MuxNotification` so a callback that only inspects
+    /// or filters does not pay for a clone. **If your subscriber forwards the
+    /// notification across threads (channel send, async task, deferred main
+    /// thread handoff) you must `.clone()` it explicitly.** Most existing
+    /// subscribers in this repo do exactly that — see
+    /// `kaku-gui/src/termwindow/mod.rs`, `kaku-gui/src/frontend.rs`,
+    /// `crates/wezterm-client/src/domain.rs`, and
+    /// `crates/wezterm-mux-server-impl/src/dispatch.rs`.
     pub fn notify(&self, notification: MuxNotification) {
         // Collect subscribers while holding the lock briefly
         let subscribers: Vec<(usize, Arc<dyn Fn(&MuxNotification) -> bool + Send + Sync>)> = self
