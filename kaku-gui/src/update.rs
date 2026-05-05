@@ -37,6 +37,7 @@ pub struct StagedUpdateInfo {
 }
 
 const STAGED_DIR_NAME: &str = "staged_update";
+const STAGED_LOCK_NAME: &str = "staged_update.lock";
 const STAGED_META_NAME: &str = "metadata.json";
 const UPDATE_ZIP_NAME: &str = "kaku_for_update.zip";
 const UPDATE_SHA_NAME: &str = "kaku_for_update.zip.sha256";
@@ -85,9 +86,18 @@ pub fn staged_update_available() -> Option<StagedUpdateInfo> {
 }
 
 /// Remove the staged_update directory entirely.
+///
+/// Acquires the staging lock before removing so this call cannot race with a
+/// concurrent `download_and_stage_update`. If another process holds the lock
+/// the cleanup is skipped silently: that process owns the directory and will
+/// clean it up itself.
 pub fn cleanup_staged_update() {
     let dir = staged_dir();
     if dir.exists() {
+        let _lock = match StagedUpdateLock::try_acquire() {
+            Ok(lock) => lock,
+            Err(_) => return,
+        };
         match std::fs::remove_dir_all(&dir) {
             Ok(()) => log::info!("cleaned up staged update directory"),
             Err(e) => log::warn!("failed to clean staged update directory: {}", e),
@@ -100,6 +110,50 @@ fn now_unix_secs() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+/// RAII guard around an exclusive `flock` on the staging lock file.
+///
+/// Two Kaku processes started at once would otherwise race on
+/// `staged_update/`: one tears it down with `remove_dir_all` while the other
+/// is mid-extract. Holding `flock(LOCK_EX | LOCK_NB)` for the duration of
+/// `download_and_stage_update` serializes them. The kernel automatically
+/// releases the lock when the file handle drops or the process exits, so the
+/// lock survives crashes without a stale-PID cleanup dance.
+struct StagedUpdateLock {
+    _file: std::fs::File,
+}
+
+impl StagedUpdateLock {
+    fn try_acquire() -> anyhow::Result<Self> {
+        let dir = config::DATA_DIR.clone();
+        config::create_user_owned_dirs(&dir)
+            .map_err(|e| anyhow!("failed to create data dir for staging lock: {}", e))?;
+        let path = dir.join(STAGED_LOCK_NAME);
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(&path)
+            .map_err(|e| anyhow!("failed to open staging lock {}: {}", path.display(), e))?;
+        use std::os::unix::io::AsRawFd;
+        let fd = file.as_raw_fd();
+        // SAFETY: fd is owned by `file` which outlives this call.
+        let rc = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
+        if rc != 0 {
+            let err = std::io::Error::last_os_error();
+            if matches!(err.raw_os_error(), Some(libc::EWOULDBLOCK)) {
+                anyhow::bail!("another Kaku process is already staging an update");
+            }
+            return Err(anyhow!(
+                "failed to acquire staging lock {}: {}",
+                path.display(),
+                err
+            ));
+        }
+        Ok(Self { _file: file })
+    }
 }
 
 fn curl_get_release_json(url: &str, proxy: &Option<String>) -> anyhow::Result<Release> {
@@ -394,6 +448,10 @@ fn download_and_stage_update(
     release: &Release,
     proxy: &Option<String>,
 ) -> anyhow::Result<StagedUpdateInfo> {
+    // Hold an exclusive lock for the whole staging operation so two Kaku
+    // processes cannot trample each other's `staged_update/` directory.
+    let _lock = StagedUpdateLock::try_acquire()?;
+
     let dir = staged_dir();
 
     // Clean any previous staged update.
@@ -489,12 +547,20 @@ fn update_checker() {
     let update_file_name = config::DATA_DIR.join("check_update");
 
     // On startup, clean orphaned or invalid staged updates.
-    // staged_update_available() handles expiry internally.
+    // Acquire the staging lock first so we don't race with another instance
+    // that is mid-download. If the lock is held, skip cleanup silently.
     if staged_update_available().is_none() {
         let dir = staged_dir();
         if dir.exists() {
-            log::info!("removing orphaned or invalid staged update directory");
-            let _ = std::fs::remove_dir_all(&dir);
+            match StagedUpdateLock::try_acquire() {
+                Ok(_lock) => {
+                    log::info!("removing orphaned or invalid staged update directory");
+                    let _ = std::fs::remove_dir_all(&dir);
+                }
+                Err(_) => {
+                    log::info!("skipping startup cleanup: another process holds the staging lock");
+                }
+            }
         }
     }
 
@@ -588,8 +654,12 @@ fn update_checker() {
                                 }
                                 Err(e) => {
                                     log::warn!("update_checker: failed to stage update: {}", e);
-                                    // Clean up partial download to avoid disk space leak.
-                                    cleanup_staged_update();
+                                    // Only clean up if we actually owned the staging dir.
+                                    // On EWOULDBLOCK another process holds the lock and its
+                                    // directory must not be touched.
+                                    if !e.to_string().contains("already staging") {
+                                        cleanup_staged_update();
+                                    }
                                     // Fall through to show notification anyway
                                     // (clicking will use the old terminal-tab flow).
                                 }
