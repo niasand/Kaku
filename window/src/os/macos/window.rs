@@ -1858,6 +1858,24 @@ impl WindowInner {
     }
 
     fn update_titlebar_background(&self) {
+        // Skip native NSTitlebarContainerView coloring when the user has not
+        // opted in. In INTEGRATED_BUTTONS top-tab layouts our Metal layer already
+        // paints the tab bar across the titlebar area, and a native CALayer
+        // fill on the titlebar container will composite on top of the GPU
+        // surface and visually erase the tab text/icons. Only color the
+        // titlebar when the user explicitly requested it via the
+        // MACOS_USE_BACKGROUND_COLOR_AS_TITLEBAR_COLOR decoration, or when the
+        // window is transparent (where the strip is needed to hide the gap
+        // between the Metal layer and the titlebar inset).
+        let should_color_titlebar = self
+            .config
+            .window_decorations
+            .contains(WindowDecorations::MACOS_USE_BACKGROUND_COLOR_AS_TITLEBAR_COLOR)
+            || self.config.window_background_opacity < 1.0;
+        if !should_color_titlebar {
+            return;
+        }
+
         // When the window is transparent and uses integrated buttons, our Metal
         // rendering already paints a semi-transparent fill strip in the titlebar
         // area.  Setting the NSTitlebarContainerView layer to a non-clear color
