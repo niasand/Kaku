@@ -140,18 +140,28 @@ local function should_remember_last_cwd()
   return config.remember_last_cwd ~= false
 end
 
+-- Detect macOS appearance via `defaults read` as a reliable fallback when
+-- wezterm.gui is not yet available (early Lua init, TUI processes like
+-- `kaku config` / `kaku ai`). Mirrors the Rust-side is_macos_dark_mode().
+local function is_macos_dark_appearance()
+  local handle = io.popen('defaults read -g AppleInterfaceStyle 2>/dev/null')
+  if not handle then
+    return true
+  end
+  local result = handle:read('*a') or ''
+  handle:close()
+  return result:find('Dark') ~= nil
+end
+
 local function resolve_appearance_color_scheme()
   local gui = wezterm.gui
-  if not gui or type(gui.get_appearance) ~= 'function' then
-    return 'Kaku Dark'
+  if gui and type(gui.get_appearance) == 'function' then
+    local ok, appearance = pcall(gui.get_appearance)
+    if ok and type(appearance) == 'string' then
+      return appearance:find('Dark', 1, true) and 'Kaku Dark' or 'Kaku Light'
+    end
   end
-
-  local ok, appearance = pcall(gui.get_appearance)
-  if not ok or type(appearance) ~= 'string' then
-    return 'Kaku Dark'
-  end
-
-  return appearance:find('Dark', 1, true) and 'Kaku Dark' or 'Kaku Light'
+  return is_macos_dark_appearance() and 'Kaku Dark' or 'Kaku Light'
 end
 
 local function resolve_kaku_color_scheme(scheme)
@@ -777,9 +787,9 @@ end
 
 -- Keep cold startup fast: parse assistant.toml lazily only when AI fix is needed.
 local ai_fix_enabled = true
-local ai_fix_api_base_url = "https://api.vivgrid.com/v1"
+local ai_fix_api_base_url = "https://api.openai.com/v1"
 local ai_fix_api_key = nil
-local ai_fix_model = "DeepSeek-V3.2"
+local ai_fix_model = "gpt-5.4-mini"
 local ai_fix_custom_headers = {}
 local ai_fix_proxy = nil
 local ai_fix_timeout_secs = 30

@@ -41,7 +41,7 @@ The config lives at `~/.config/kaku/assistant.toml`:
 | :--- | :--- |
 | `enabled` | `true` to enable, `false` to disable |
 | `api_key` | Your provider API key |
-| `model` | Model identifier, e.g. `DeepSeek-V3.2` |
+| `model` | Model identifier, e.g. `gpt-5.4-mini` |
 | `base_url` | OpenAI-compatible API root URL |
 | `custom_headers` | Extra HTTP headers for enterprise proxies, e.g. `["X-Customer-ID: your-id"]` |
 
