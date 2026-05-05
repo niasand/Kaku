@@ -27,6 +27,7 @@ use wezterm_gui_subcommands::*;
 
 mod ai_config;
 mod assistant_config;
+mod chat;
 mod cli;
 mod config_cmd;
 mod config_tui;
@@ -123,6 +124,12 @@ enum SubCommand {
 
     #[command(name = "ai", about = "Manage AI settings")]
     Ai(ai_config::AiConfigCommand),
+
+    #[command(
+        name = "chat",
+        about = "Start the AI chat in this terminal (alias for `k`)"
+    )]
+    Chat(chat::ChatCommand),
 
     #[command(name = "config", about = "Configure Kaku settings")]
     Config(config_cmd::ConfigCommand),
@@ -365,6 +372,7 @@ fn run() -> anyhow::Result<()> {
             opts.config_override.clone(),
             opts.skip_config,
         ),
+        SubCommand::Chat(cmd) => cmd.run(),
     }
 }
 
