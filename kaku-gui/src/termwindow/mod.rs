@@ -182,12 +182,7 @@ fn decode_hex_event_payload(payload: &str) -> Option<String> {
     Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// Check if a color is light based on luminance.
-/// Expects an SrgbaTuple (r, g, b, a) where r, g, b are in 0.0-1.0 range.
-pub fn is_light_color(color: &wezterm_term::color::SrgbaTuple) -> bool {
-    let luminance = 0.299 * color.0 + 0.587 * color.1 + 0.114 * color.2;
-    luminance > 0.5
-}
+pub use config::is_light_color;
 
 fn ai_toast_lifetime_ms(message: &str) -> u64 {
     let lower = message.to_ascii_lowercase();
@@ -1734,17 +1729,12 @@ impl TermWindow {
         crate::startup_trace::mark("  Window::new_window done");
         tw.borrow_mut().window.replace(window.clone());
 
-        // Show the window as early as possible so the user sees it while
-        // GPU initialization runs in the background.
         {
             let mut myself = tw.borrow_mut();
             myself.load_os_parameters();
         }
-        crate::startup_trace::mark("  window.show() start");
-        window.show();
-        crate::startup_trace::mark("  window.show() done");
 
-        // These run after show; they don't affect window visibility.
+        // These don't depend on the window being visible.
         Self::apply_icon(&window)?;
 
         let config_subscription = config::subscribe_to_config_reload({
@@ -1777,6 +1767,15 @@ impl TermWindow {
             _ => (Some(window.enable_opengl().await?), None),
         };
         crate::startup_trace::mark("  GPU init done");
+
+        // Show the window only after the GPU surface is attached, so the very
+        // first visible frame composites the GPU layer over the AppKit chrome.
+        // Showing earlier exposes a window of time where NSTitlebarContainerView's
+        // vibrancy material renders the system appearance, which on a dark theme
+        // produces a brief light strip at the top of the window.
+        crate::startup_trace::mark("  window.show() start");
+        window.show();
+        crate::startup_trace::mark("  window.show() done");
 
         {
             let mut myself = tw.borrow_mut();

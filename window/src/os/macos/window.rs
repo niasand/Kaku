@@ -27,7 +27,7 @@ use cocoa::foundation::{
     NSString, NSUInteger,
 };
 use config::window::WindowLevel;
-use config::{ConfigHandle, RgbaColor, SrgbaTuple};
+use config::{is_light_color, ConfigHandle, RgbaColor, SrgbaTuple};
 use core_foundation::base::{CFTypeID, TCFType};
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 use core_foundation::data::{CFData, CFDataGetBytePtr, CFDataRef};
@@ -1045,6 +1045,8 @@ impl Window {
             let _: () = msg_send![*window, setExcludedFromWindowsMenu: YES];
             window.setBackgroundColor_(cocoa::appkit::NSColor::clearColor(nil));
 
+            apply_window_appearance(&window, &config);
+
             // Tell Cocoa that we output in sRGB, so it handles color space
             // conversion for non-sRGB displays.
             window.setColorSpace_(cocoa::appkit::NSColorSpace::sRGBColorSpace(nil));
@@ -2047,6 +2049,7 @@ impl WindowInner {
             );
 
             self.update_titlebar_background();
+            apply_window_appearance(&self.window, &self.config);
 
             self.window.makeKeyAndOrderFront_(nil)
         }
@@ -2293,7 +2296,32 @@ impl WindowInner {
         self.update_window_shadow();
         self.update_window_background_blur();
         self.update_titlebar_background();
+        apply_window_appearance(&self.window, &self.config);
         self.apply_decorations();
+    }
+}
+
+/// Pin the NSWindow's appearance to match the resolved color scheme. Without
+/// this, NSTitlebarContainerView's vibrancy material renders one frame using
+/// the system appearance before the GPU layer presents real content, causing
+/// a light strip to flash at the top of a dark-themed window on cold start
+/// (and vice versa). When no theme background is set, fall back to nil so the
+/// window keeps following the system, preserving the prior behavior.
+fn apply_window_appearance(window: &StrongPtr, config: &ConfigHandle) {
+    let appearance_name = config.resolved_palette.background.map(|bg| {
+        if is_light_color(&bg) {
+            "NSAppearanceNameAqua"
+        } else {
+            "NSAppearanceNameDarkAqua"
+        }
+    });
+
+    unsafe {
+        let appearance: id = match appearance_name {
+            Some(name) => msg_send![class!(NSAppearance), appearanceNamed: *nsstring(name)],
+            None => nil,
+        };
+        let _: () = msg_send![**window, setAppearance: appearance];
     }
 }
 
