@@ -4009,7 +4009,14 @@ get_window_frame_colors = function(scheme)
 end
 
 if not user_has_custom_window_frame then
-  local window_frame_colors = get_window_frame_colors(config.color_scheme)
+  -- Use the user's intended scheme (scanned from their kaku.lua) rather than
+  -- config.color_scheme, which has already been resolved against the system
+  -- appearance and may not reflect a later override. Without this, on cold
+  -- start a Dark-theme user on a Light system gets `#FFFCF0` titlebar/border
+  -- colors painted on the first frame, producing a visible light strip at the
+  -- top until window-config-reloaded re-runs build_managed_window_frame.
+  local initial_scheme = is_user_light_theme() and 'Kaku Light' or 'Kaku Dark'
+  local window_frame_colors = get_window_frame_colors(initial_scheme)
   config.window_frame = {
     font = wezterm.font({ family = 'JetBrains Mono', weight = 'Regular' }),
     font_size = 14.0,
