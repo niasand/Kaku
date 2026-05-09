@@ -128,11 +128,7 @@ fn split_shell_segments(command: &str) -> Option<Vec<String>> {
                 in_double = !in_double;
                 current.push(ch);
             }
-            '<' if !in_single && !in_double => {
-                if !skip_safe_input_redirection(&mut chars) {
-                    return None;
-                }
-            }
+            '<' if !in_single && !in_double => return None,
             '>' if !in_single && !in_double => {
                 if !skip_safe_output_redirection(&mut chars, &mut current) {
                     return None;
@@ -165,15 +161,6 @@ fn split_shell_segments(command: &str) -> Option<Vec<String>> {
 
     flush(&mut current, &mut segments)?;
     Some(segments)
-}
-
-fn skip_safe_input_redirection(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> bool {
-    if chars.peek() == Some(&'(') {
-        return false;
-    }
-    consume_whitespace(chars);
-    consume_word(chars);
-    true
 }
 
 fn skip_safe_output_redirection(
@@ -218,18 +205,6 @@ fn consume_whitespace(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) {
     }
 }
 
-fn consume_word(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) {
-    while let Some(&c) = chars.peek() {
-        if matches!(
-            c,
-            ' ' | '\t' | '\n' | '\r' | '|' | '&' | ';' | '<' | '>' | '(' | ')'
-        ) {
-            break;
-        }
-        chars.next();
-    }
-}
-
 fn take_word(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> String {
     let mut w = String::new();
     while let Some(&c) = chars.peek() {
@@ -266,6 +241,10 @@ fn strip_trailing_fd_digits(current: &mut String) {
 
 fn shell_tokens_are_dangerous(tokens: &[String]) -> bool {
     let cmd = tokens[0].as_str();
+
+    if shell_tokens_reference_sensitive_path(tokens) {
+        return true;
+    }
 
     if cmd == "dd"
         || cmd.starts_with("mkfs")
@@ -307,6 +286,77 @@ fn shell_tokens_are_dangerous(tokens: &[String]) -> bool {
         "cargo" => cargo_is_dangerous(tokens),
         "make" => make_is_dangerous(tokens),
         _ => true,
+    }
+}
+
+fn shell_tokens_reference_sensitive_path(tokens: &[String]) -> bool {
+    tokens
+        .iter()
+        .skip(1)
+        .any(|token| shell_token_references_sensitive_path(token))
+}
+
+fn shell_token_references_sensitive_path(token: &str) -> bool {
+    for candidate in shell_path_candidates(token) {
+        if crate::ai_tools::paths::reject_if_sensitive(&candidate).is_err() {
+            return true;
+        }
+    }
+    false
+}
+
+fn shell_path_candidates(token: &str) -> Vec<std::path::PathBuf> {
+    let mut candidates = Vec::new();
+    push_shell_path_candidate(token, &mut candidates);
+
+    if let Some((_, value)) = token.split_once('=') {
+        push_shell_path_candidate(value, &mut candidates);
+    }
+
+    candidates
+}
+
+fn push_shell_path_candidate(raw: &str, candidates: &mut Vec<std::path::PathBuf>) {
+    let s = raw.trim();
+    if s.is_empty() {
+        return;
+    }
+
+    if s == "~" || s.starts_with("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            if s == "~" {
+                candidates.push(std::path::PathBuf::from(home));
+            } else {
+                candidates.push(std::path::PathBuf::from(home).join(&s[2..]));
+            }
+        }
+        return;
+    }
+
+    if s == "$HOME" || s.starts_with("$HOME/") {
+        if let Ok(home) = std::env::var("HOME") {
+            if s == "$HOME" {
+                candidates.push(std::path::PathBuf::from(home));
+            } else {
+                candidates.push(std::path::PathBuf::from(home).join(&s["$HOME/".len()..]));
+            }
+        }
+        return;
+    }
+
+    if s == "${HOME}" || s.starts_with("${HOME}/") {
+        if let Ok(home) = std::env::var("HOME") {
+            if s == "${HOME}" {
+                candidates.push(std::path::PathBuf::from(home));
+            } else {
+                candidates.push(std::path::PathBuf::from(home).join(&s["${HOME}/".len()..]));
+            }
+        }
+        return;
+    }
+
+    if s.starts_with('/') {
+        candidates.push(std::path::PathBuf::from(s));
     }
 }
 
@@ -612,8 +662,8 @@ mod tests {
     }
 
     #[test]
-    fn stdin_input_no_approval() {
-        assert!(!shell_command_requires_approval("grep foo < input.txt"));
+    fn stdin_input_requires_approval() {
+        assert!(shell_command_requires_approval("grep foo < input.txt"));
     }
 
     #[test]
@@ -668,6 +718,25 @@ mod tests {
     #[test]
     fn cat_no_approval() {
         assert!(!shell_command_requires_approval("cat Cargo.toml"));
+    }
+
+    #[test]
+    fn cat_ssh_key_requires_approval() {
+        assert!(shell_command_requires_approval("cat ~/.ssh/id_rsa"));
+        assert!(shell_command_requires_approval("cat $HOME/.ssh/id_rsa"));
+        assert!(shell_command_requires_approval("cat ${HOME}/.ssh/id_rsa"));
+    }
+
+    #[test]
+    fn grep_aws_credentials_requires_approval() {
+        assert!(shell_command_requires_approval(
+            "grep aws_secret_access_key ~/.aws/credentials"
+        ));
+    }
+
+    #[test]
+    fn option_secret_path_requires_approval() {
+        assert!(shell_command_requires_approval("cat --input=~/.ssh/id_rsa"));
     }
 
     #[test]

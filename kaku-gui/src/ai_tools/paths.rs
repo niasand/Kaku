@@ -25,7 +25,13 @@ pub(crate) fn reject_if_sensitive(path: &Path) -> Result<()> {
         PathBuf::from("/private/etc/sudoers.d"),
     ];
     if !home.is_empty() {
-        for rel in [".ssh", ".aws/credentials", ".gnupg", ".config/kaku/secrets"] {
+        for rel in [
+            ".ssh",
+            ".aws/credentials",
+            ".gnupg",
+            ".config/kaku/assistant.toml",
+            ".config/kaku/secrets",
+        ] {
             blocked.push(PathBuf::from(&home).join(rel));
         }
     }
@@ -154,6 +160,14 @@ mod tests {
         let home = std::env::var("HOME").expect("HOME not set");
         let ssh = PathBuf::from(&home).join(".ssh");
         let err = reject_if_sensitive(&ssh).expect_err("must reject ~/.ssh");
+        assert!(err.to_string().contains("protected secret location"));
+    }
+
+    #[test]
+    fn reject_if_sensitive_blocks_assistant_config() {
+        let home = std::env::var("HOME").expect("HOME not set");
+        let assistant_config = PathBuf::from(&home).join(".config/kaku/assistant.toml");
+        let err = reject_if_sensitive(&assistant_config).expect_err("must reject assistant config");
         assert!(err.to_string().contains("protected secret location"));
     }
 

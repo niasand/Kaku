@@ -581,11 +581,10 @@ mod markdown_tests {
             "ls; pwd",
             "pwd && ls && whoami",
             "cat Cargo.toml | grep name && pwd",
-            // Safe redirections: stderr silenced, fd duplication, stdin read
+            // Safe redirections: stderr silenced and fd duplication.
             "ls -la ~/www/kaku 2>/dev/null",
             "ls 2> /dev/null",
             "cat foo 2>&1 | grep bar",
-            "cat < input.txt",
             "ls -la ~/www/kaku 2>/dev/null || echo \"Not found\"",
         ] {
             assert!(
@@ -708,9 +707,14 @@ mod markdown_tests {
             // shell hazards: output redirections, backgrounding, command substitution
             "cat a > b",
             "echo hi >> log.txt",
+            "cat < input.txt",
             "sleep 100 &",
             "echo `whoami`",
             "echo $(pwd)",
+            // sensitive paths must not bypass approval through read-only commands
+            "cat ~/.ssh/id_rsa",
+            "cat $HOME/.ssh/id_rsa",
+            "grep secret ~/.aws/credentials",
             // chain containing any dangerous segment still requires approval
             "ls && rm -rf /tmp/x",
             "cd /tmp && touch foo",
