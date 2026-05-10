@@ -695,10 +695,8 @@ impl Default for AllowSquareGlyphOverflow {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromDynamic, ToDynamic)]
 pub enum FontLocatorSelection {
-    /// Use fontconfig APIs to resolve fonts (!macos, posix systems)
+    /// Use fontconfig APIs to resolve fonts (Linux)
     FontConfig,
-    /// Use GDI on win32 systems
-    Gdi,
     /// Use CoreText on macOS
     CoreText,
     /// Use only the font_dirs configuration to locate fonts
@@ -707,9 +705,7 @@ pub enum FontLocatorSelection {
 
 impl Default for FontLocatorSelection {
     fn default() -> Self {
-        if cfg!(windows) {
-            FontLocatorSelection::Gdi
-        } else if cfg!(target_os = "macos") {
+        if cfg!(target_os = "macos") {
             FontLocatorSelection::CoreText
         } else {
             FontLocatorSelection::FontConfig

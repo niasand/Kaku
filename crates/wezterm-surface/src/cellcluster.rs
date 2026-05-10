@@ -6,7 +6,6 @@ use wezterm_char_props::emoji::Presentation;
 
 extern crate alloc;
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 
 /// A `CellCluster` is another representation of a Line.
