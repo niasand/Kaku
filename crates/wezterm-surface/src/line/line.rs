@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use siphasher::sip128::{Hasher128, SipHasher};
 #[cfg(feature = "appdata")]
 use std::sync::Mutex;
-use wezterm_bidi::{Direction, ParagraphDirectionHint};
+use wezterm_bidi::ParagraphDirectionHint;
 use wezterm_cell::{Cell, CellAttributes, SemanticType, UnicodeVersion};
 
 extern crate alloc;
@@ -365,58 +365,39 @@ impl Line {
     }
 
     /// Set a flag the indicate whether the line should have the bidi
-    /// algorithm applied during rendering
-    pub fn set_bidi_enabled(&mut self, enabled: bool, seqno: SequenceNo) {
-        self.bits.set(LineBits::BIDI_ENABLED, enabled);
+    /// algorithm applied during rendering.
+    /// Note: bidi is stubbed out, so this is a no-op that preserves API compatibility.
+    pub fn set_bidi_enabled(&mut self, _enabled: bool, seqno: SequenceNo) {
         self.update_last_change_seqno(seqno);
     }
 
     /// Set the bidi direction for the line.
-    /// This affects both the bidi algorithm (if enabled via set_bidi_enabled)
-    /// and the layout direction of the line.
-    /// `auto_detect` specifies whether the direction should be auto-detected
-    /// before falling back to the specified direction.
-    pub fn set_direction(&mut self, direction: Direction, auto_detect: bool, seqno: SequenceNo) {
-        self.bits
-            .set(LineBits::RTL, direction == Direction::LeftToRight);
-        self.bits.set(LineBits::AUTO_DETECT_DIRECTION, auto_detect);
+    /// Note: bidi is stubbed out, so this is a no-op that preserves API compatibility.
+    pub fn set_direction(
+        &mut self,
+        _direction: wezterm_bidi::Direction,
+        _auto_detect: bool,
+        seqno: SequenceNo,
+    ) {
         self.update_last_change_seqno(seqno);
     }
 
+    /// Note: bidi is stubbed out — always reports (false, LeftToRight).
     pub fn set_bidi_info(
         &mut self,
-        enabled: bool,
-        direction: ParagraphDirectionHint,
+        _enabled: bool,
+        _direction: ParagraphDirectionHint,
         seqno: SequenceNo,
     ) {
-        self.bits.set(LineBits::BIDI_ENABLED, enabled);
-        let (auto, rtl) = match direction {
-            ParagraphDirectionHint::AutoRightToLeft => (true, true),
-            ParagraphDirectionHint::AutoLeftToRight => (true, false),
-            ParagraphDirectionHint::LeftToRight => (false, false),
-            ParagraphDirectionHint::RightToLeft => (false, true),
-        };
-        self.bits.set(LineBits::AUTO_DETECT_DIRECTION, auto);
-        self.bits.set(LineBits::RTL, rtl);
         self.update_last_change_seqno(seqno);
     }
 
     /// Returns a tuple of (BIDI_ENABLED, Direction), indicating whether
     /// the line should have the bidi algorithm applied and its base
     /// direction, respectively.
+    /// Note: bidi is stubbed out — always returns (false, LeftToRight).
     pub fn bidi_info(&self) -> (bool, ParagraphDirectionHint) {
-        (
-            self.bits.contains(LineBits::BIDI_ENABLED),
-            match (
-                self.bits.contains(LineBits::AUTO_DETECT_DIRECTION),
-                self.bits.contains(LineBits::RTL),
-            ) {
-                (true, true) => ParagraphDirectionHint::AutoRightToLeft,
-                (false, true) => ParagraphDirectionHint::RightToLeft,
-                (true, false) => ParagraphDirectionHint::AutoLeftToRight,
-                (false, false) => ParagraphDirectionHint::LeftToRight,
-            },
-        )
+        (false, ParagraphDirectionHint::LeftToRight)
     }
 
     fn invalidate_zones(&mut self) {
@@ -1044,8 +1025,8 @@ impl Line {
             .find(|cell| cell.cell_index() == cell_index)
     }
 
-    pub fn cluster(&self, bidi_hint: Option<ParagraphDirectionHint>) -> Vec<CellCluster> {
-        CellCluster::make_cluster(self.len(), self.visible_cells(), bidi_hint)
+    pub fn cluster(&self, _bidi_hint: Option<()>) -> Vec<CellCluster> {
+        CellCluster::make_cluster(self.len(), self.visible_cells(), None)
     }
 
     fn make_cells(&mut self) {

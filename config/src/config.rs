@@ -38,7 +38,6 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use termwiz::hyperlink;
 use termwiz::surface::CursorShape;
-use wezterm_bidi::ParagraphDirectionHint;
 use wezterm_config_derive::ConfigMeta;
 use wezterm_dynamic::{FromDynamic, ToDynamic};
 use wezterm_input_types::{
@@ -819,12 +818,6 @@ pub struct Config {
 
     #[dynamic(default)]
     pub ignore_svg_fonts: bool,
-
-    #[dynamic(default)]
-    pub bidi_enabled: bool,
-
-    #[dynamic(default)]
-    pub bidi_direction: ParagraphDirectionHint,
 
     #[dynamic(default = "default_stateless_process_list")]
     pub skip_close_confirmation_for_processes_named: Vec<String>,

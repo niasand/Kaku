@@ -208,16 +208,8 @@ impl SessionInner {
 
         let (sock, _child) = self.connect_to_host(&hostname, port, verbose)?;
         let raw = {
-            #[cfg(unix)]
-            {
-                use std::os::unix::io::IntoRawFd;
-                sock.into_raw_fd()
-            }
-            #[cfg(windows)]
-            {
-                use std::os::windows::io::IntoRawSocket;
-                sock.into_raw_socket()
-            }
+            use std::os::unix::io::IntoRawFd;
+            sock.into_raw_fd()
         };
 
         sess.set_option(libssh_rs::SshOption::Socket(raw))?;
@@ -365,14 +357,6 @@ impl SessionInner {
                     };
 
                     return Ok((Socket::from_raw_fd(dest), Some(KillOnDropChild(child))));
-                }
-                #[cfg(windows)]
-                unsafe {
-                    use std::os::windows::io::{FromRawSocket, IntoRawSocket};
-                    return Ok((
-                        Socket::from_raw_socket(a.into_raw_socket()),
-                        Some(KillOnDropChild(child)),
-                    ));
                 }
             }
         }
@@ -867,17 +851,7 @@ impl SessionInner {
                 .ok_or_else(|| anyhow!("no identity agent in config"))?;
             let mut fd = {
                 use wezterm_uds::UnixStream;
-                #[cfg(unix)]
-                {
-                    FileDescriptor::new(UnixStream::connect(&identity_agent)?)
-                }
-                #[cfg(windows)]
-                unsafe {
-                    use std::os::windows::io::{FromRawSocket, IntoRawSocket};
-                    FileDescriptor::from_raw_socket(
-                        UnixStream::connect(&identity_agent)?.into_raw_socket(),
-                    )
-                }
+                FileDescriptor::new(UnixStream::connect(&identity_agent)?)
             };
             fd.set_non_blocking(true)?;
 

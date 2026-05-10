@@ -1,5 +1,3 @@
-use crate::bidi_class::BidiClass;
-
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Direction {
     LeftToRight,
@@ -16,23 +14,18 @@ impl Direction {
     }
 
     pub fn opposite(self) -> Self {
-        if self == Direction::LeftToRight {
-            Direction::RightToLeft
-        } else {
-            Direction::LeftToRight
-        }
-    }
-
-    pub fn as_bidi_class(self) -> BidiClass {
         match self {
-            Self::RightToLeft => BidiClass::RightToLeft,
-            Self::LeftToRight => BidiClass::LeftToRight,
+            Direction::LeftToRight => Direction::RightToLeft,
+            Direction::RightToLeft => Direction::LeftToRight,
         }
     }
 
-    /// Given a DoubleEndedIterator, returns an iterator that will
-    /// either walk it in its natural order if Direction==LeftToRight,
-    /// or in reverse order if Direction==RightToLeft
+    pub fn as_bidi_class(self) -> &'static str {
+        // stub — not used by any downstream code path after bidi removal
+        "L"
+    }
+
+    /// Iterate in natural order (LTR) or reversed (RTL).
     pub fn iter<I: DoubleEndedIterator<Item = T>, T>(self, iter: I) -> DirectionIter<I, T> {
         DirectionIter::wrap(iter, self)
     }

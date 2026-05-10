@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use terminfo::{Database, Value};
 use termwiz::input::KeyboardEncoding;
 use url::Url;
-use wezterm_bidi::ParagraphDirectionHint;
+use wezterm_bidi::ParagraphDirectionHint; // kept for API compat
 use wezterm_cell::image::ImageData;
 use wezterm_cell::UnicodeVersion;
 use wezterm_escape_parser::csi::{
@@ -2303,14 +2303,11 @@ impl TerminalState {
     }
 
     fn get_bidi_mode(&self) -> BidiMode {
-        let mut mode = self.config.bidi_mode();
-        if let Some(enabled) = &self.bidi_enabled {
-            mode.enabled = *enabled;
+        // Bidi is stubbed out — always return disabled/LTR
+        BidiMode {
+            enabled: false,
+            hint: ParagraphDirectionHint::LeftToRight,
         }
-        if let Some(hint) = &self.bidi_hint {
-            mode.hint = *hint;
-        }
-        mode
     }
 
     fn perform_csi_edit(&mut self, edit: Edit) {

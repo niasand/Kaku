@@ -13,7 +13,7 @@ use std::time::Instant;
 use termwiz::cell::Blink;
 use termwiz::color::LinearRgba;
 use termwiz::surface::CursorShape;
-use wezterm_bidi::Direction;
+use wezterm_bidi::Direction; // kept for DirectionIter usage in rendering
 use wezterm_term::color::ColorAttribute;
 use wezterm_term::CellAttributes;
 
@@ -87,8 +87,7 @@ impl crate::TermWindow {
 
         let start = Instant::now();
 
-        let (_bidi_enabled, bidi_direction) = params.line.bidi_info();
-        let direction = bidi_direction.direction();
+        let direction = Direction::LeftToRight;
 
         let cursor_cell = if params.stable_line_idx == Some(params.cursor.y) {
             params.line.get_cell(params.cursor.x)
@@ -762,12 +761,6 @@ impl crate::TermWindow {
         &self,
         params: LineToElementParams,
     ) -> anyhow::Result<(Rc<Vec<LineToElementShape>>, bool)> {
-        let (bidi_enabled, bidi_direction) = params.line.bidi_info();
-        let bidi_hint = if bidi_enabled {
-            Some(bidi_direction)
-        } else {
-            None
-        };
         let cell_clusters = if let Some((cursor_x, composing)) =
             params.shape_key.as_ref().and_then(|k| k.composing.as_ref())
         {
@@ -775,9 +768,9 @@ impl crate::TermWindow {
             let mut line = params.line.clone();
             let seqno = line.current_seqno();
             line.overlay_text_with_attribute(*cursor_x, &composing, CellAttributes::blank(), seqno);
-            line.cluster(bidi_hint)
+            line.cluster(None)
         } else {
-            params.line.cluster(bidi_hint)
+            params.line.cluster(None)
         };
 
         let gl_state = self.render_state.as_ref().unwrap();

@@ -1,6 +1,6 @@
 use crate::line::CellRef;
 use alloc::borrow::Cow;
-use wezterm_bidi::{BidiContext, Direction, ParagraphDirectionHint};
+use wezterm_bidi::Direction;
 use wezterm_cell::CellAttributes;
 use wezterm_char_props::emoji::Presentation;
 
@@ -47,10 +47,11 @@ impl CellCluster {
 
     /// Compute the list of CellClusters from a set of visible cells.
     /// The input is typically the result of calling `Line::visible_cells()`.
+    /// Note: bidi reordering has been removed — all text is treated as LTR.
     pub fn make_cluster<'a>(
         hint: usize,
         iter: impl Iterator<Item = CellRef<'a>>,
-        bidi_hint: Option<ParagraphDirectionHint>,
+        _bidi_hint: Option<()>,
     ) -> Vec<CellCluster> {
         let mut last_cluster = None;
         let mut clusters = Vec::new();
@@ -107,11 +108,7 @@ impl CellCluster {
                         // the terminal is wide and a long series of short lines are printed;
                         // the shaper can cache the few variations of trailing whitespace
                         // and focus on shaping the shorter cluster sequences.
-                        // Or:
-                        // when bidi is disabled, force break on whitespace boundaries.
-                        // This reduces shaping load in the case where is a line is
-                        // updated continually, but only a portion of it changes
-                        // (eg: progress counter).
+                        // Force break on whitespace boundaries (bidi is always disabled).
                         let was_whitespace = whitespace_run > 0;
                         if cell_str == " " {
                             whitespace_run += 1;
@@ -121,7 +118,7 @@ impl CellCluster {
                         }
 
                         let force_break = (!only_whitespace && whitespace_run > 2)
-                            || (!only_whitespace && bidi_hint.is_none() && was_whitespace);
+                            || (!only_whitespace && was_whitespace);
 
                         if force_break {
                             clusters.push(last);
@@ -148,87 +145,10 @@ impl CellCluster {
         }
 
         if let Some(cluster) = last_cluster {
-            // Don't forget to include any pending cluster on the final step!
             clusters.push(cluster);
         }
 
-        if let Some(hint) = bidi_hint {
-            let mut resolved_clusters = vec![];
-
-            let mut context = BidiContext::new();
-            for cluster in clusters {
-                Self::resolve_bidi(&mut context, hint, cluster, &mut resolved_clusters);
-            }
-
-            resolved_clusters
-        } else {
-            clusters
-        }
-    }
-
-    fn resolve_bidi(
-        context: &mut BidiContext,
-        hint: ParagraphDirectionHint,
-        cluster: CellCluster,
-        resolved: &mut Vec<Self>,
-    ) {
-        let mut paragraph = Vec::with_capacity(cluster.text.len());
-        let mut codepoint_index_to_byte_idx = Vec::with_capacity(cluster.text.len());
-        for (byte_idx, c) in cluster.text.char_indices() {
-            codepoint_index_to_byte_idx.push(byte_idx);
-            paragraph.push(c);
-        }
-
-        context.resolve_paragraph(&paragraph, hint);
-        for run in context.reordered_runs(0..paragraph.len()) {
-            let mut text = String::with_capacity(run.range.end - run.range.start);
-            let mut byte_to_cell_idx = vec![];
-            let mut byte_to_cell_width = vec![];
-            let mut width = 0usize;
-            let mut first_cell_idx = None;
-
-            // Note: if we wanted the actual bidi-re-ordered
-            // text we should iterate over run.indices here,
-            // however, cluster.text will be fed into harfbuzz
-            // and that requires the original logical order
-            // for the text, so we look at run.range instead.
-            for cp_idx in run.range.clone() {
-                let cp = paragraph[cp_idx];
-                text.push(cp);
-
-                let original_byte = codepoint_index_to_byte_idx[cp_idx];
-                let cell_width = cluster.byte_to_cell_width(original_byte);
-                width += cell_width as usize;
-
-                let cell_idx = cluster.byte_to_cell_idx(original_byte);
-                if first_cell_idx.is_none() {
-                    first_cell_idx.replace(cell_idx);
-                }
-
-                if !cluster.byte_to_cell_width.is_empty() {
-                    for _ in 0..cp.len_utf8() {
-                        byte_to_cell_width.push(cell_width);
-                    }
-                }
-
-                if !cluster.byte_to_cell_idx.is_empty() {
-                    for _ in 0..cp.len_utf8() {
-                        byte_to_cell_idx.push(cell_idx);
-                    }
-                }
-            }
-
-            resolved.push(CellCluster {
-                attrs: cluster.attrs.clone(),
-                text,
-                width,
-                direction: run.direction,
-                presentation: cluster.presentation,
-                byte_to_cell_width,
-                byte_to_cell_idx,
-                first_cell_idx: first_cell_idx.unwrap(),
-            });
-        }
+        clusters
     }
 
     /// Start off a new cluster with some initial data

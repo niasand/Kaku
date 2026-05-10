@@ -10,7 +10,6 @@ use std::sync::Arc;
 pub mod core_text;
 #[cfg(all(unix, not(target_os = "macos")))]
 pub mod font_config;
-pub mod gdi;
 
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub enum FontOrigin {
@@ -232,12 +231,6 @@ pub fn new_locator(locator: FontLocatorSelection) -> Arc<dyn FontLocator + Send 
             return Arc::new(core_text::CoreTextFontLocator {});
             #[cfg(not(target_os = "macos"))]
             panic!("CoreText not compiled in");
-        }
-        FontLocatorSelection::Gdi => {
-            #[cfg(windows)]
-            return Arc::new(gdi::GdiFontLocator {});
-            #[cfg(not(windows))]
-            panic!("Gdi not compiled in");
         }
         FontLocatorSelection::ConfigDirsOnly => Arc::new(NopSystemSource {}),
     }

@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use termwiz::cell::UnicodeVersion;
 use wezterm_term::color::ColorPalette;
 use wezterm_term::config::BidiMode;
+use wezterm_bidi::ParagraphDirectionHint;
 
 #[derive(Debug)]
 pub struct TermConfig {
@@ -118,10 +119,9 @@ impl wezterm_term::TerminalConfiguration for TermConfig {
     }
 
     fn bidi_mode(&self) -> BidiMode {
-        let config = self.configuration();
         BidiMode {
-            enabled: config.bidi_enabled,
-            hint: config.bidi_direction,
+            enabled: false,
+            hint: ParagraphDirectionHint::LeftToRight,
         }
     }
 }

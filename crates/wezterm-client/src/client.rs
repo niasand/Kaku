@@ -23,8 +23,6 @@ use std::marker::Unpin;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
-#[cfg(windows)]
-use std::os::windows::io::{AsRawSocket, AsSocket, BorrowedSocket, RawSocket};
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
@@ -494,15 +492,9 @@ pub fn unix_connect_with_retry(
                 }
 
                 if error.is_none() {
-                    #[cfg(unix)]
                     unsafe {
                         use std::os::unix::io::{FromRawFd, IntoRawFd};
                         return Ok(UnixStream::from_raw_fd(a.into_raw_fd()));
-                    }
-                    #[cfg(windows)]
-                    unsafe {
-                        use std::os::windows::io::{FromRawSocket, IntoRawSocket};
-                        return Ok(UnixStream::from_raw_socket(a.into_raw_socket()));
                     }
                 }
             }
@@ -557,24 +549,9 @@ impl AsFd for SshStream {
     }
 }
 
-#[cfg(unix)]
 impl AsRawFd for SshStream {
     fn as_raw_fd(&self) -> RawFd {
         self.stdout.as_raw_fd()
-    }
-}
-
-#[cfg(windows)]
-impl AsRawSocket for SshStream {
-    fn as_raw_socket(&self) -> RawSocket {
-        self.stdout.as_raw_socket()
-    }
-}
-
-#[cfg(windows)]
-impl AsSocket for SshStream {
-    fn as_socket(&self) -> BorrowedSocket {
-        self.stdout.as_socket()
     }
 }
 

@@ -6112,9 +6112,6 @@ checksum = "009936b22a61d342859b5f0ea64681cbb35a358ab548e2a44a8cf0dac2d980b8"
 name = "wezterm-bidi"
 version = "0.2.3"
 dependencies = [
- "env_logger 0.11.8",
- "k9",
- "log",
  "wezterm-dynamic",
 ]
 
