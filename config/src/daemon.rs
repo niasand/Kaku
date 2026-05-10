@@ -25,11 +25,6 @@ pub fn set_sticky_bit(path: &Path) {
             let _ = std::fs::set_permissions(&path, perms);
         }
     }
-
-    #[cfg(windows)]
-    {
-        let _ = path;
-    }
 }
 
 fn open_log(path: PathBuf) -> anyhow::Result<File> {

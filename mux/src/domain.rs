@@ -18,7 +18,6 @@ use downcast_rs::{impl_downcast, Downcast};
 use parking_lot::Mutex;
 use portable_pty::{native_pty_system, CommandBuilder, ExitStatus, MasterPty, PtySize, PtySystem};
 use serde::{Deserialize, Serialize};
-use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -287,15 +286,6 @@ impl LocalDomain {
         false
     }
 
-    #[cfg(windows)]
-    fn is_conpty(&self) -> bool {
-        let pty_system = self.pty_system.lock();
-        let pty_system: &dyn PtySystem = &**pty_system;
-        pty_system
-            .downcast_ref::<portable_pty::win::conpty::ConPtySystem>()
-            .is_some()
-    }
-
     async fn fixup_command(&self, cmd: &mut CommandBuilder) -> anyhow::Result<()> {
         if Path::new("/.flatpak-info").exists() {
             // We're running inside a flatpak sandbox.
@@ -495,11 +485,6 @@ impl portable_pty::Child for FailedProcessSpawn {
     }
 
     fn process_id(&self) -> Option<u32> {
-        None
-    }
-
-    #[cfg(windows)]
-    fn as_raw_handle(&self) -> Option<std::os::windows::io::RawHandle> {
         None
     }
 }

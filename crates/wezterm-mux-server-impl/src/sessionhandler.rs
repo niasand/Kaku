@@ -1,4 +1,3 @@
-use crate::PKI;
 use anyhow::{anyhow, Context};
 use codec::*;
 use config::TermConfig;

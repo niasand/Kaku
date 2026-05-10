@@ -549,15 +549,9 @@ impl Pane for LocalPane {
     }
 
     fn tty_name(&self) -> Option<String> {
-        #[cfg(unix)]
         {
             let name = self.pty.lock().tty_name()?;
             Some(name.to_string_lossy().into_owned())
-        }
-
-        #[cfg(windows)]
-        {
-            None
         }
     }
 
@@ -571,7 +565,6 @@ impl Pane for LocalPane {
     }
 
     fn get_foreground_process_name(&self, policy: CachePolicy) -> Option<String> {
-        #[cfg(unix)]
         {
             let leader = self.get_leader(policy);
             if let Some(path) = &leader.path {
@@ -579,14 +572,6 @@ impl Pane for LocalPane {
             }
             return None;
         }
-
-        #[cfg(windows)]
-        if let Some(fg) = self.divine_foreground_process(policy) {
-            return Some(fg.executable.to_string_lossy().to_string());
-        }
-
-        #[allow(unreachable_code)]
-        None
     }
 
     fn can_close_without_prompting(&self, _reason: CloseReason) -> bool {
@@ -1092,7 +1077,6 @@ impl LocalPane {
     }
 
     fn divine_current_working_dir(&self, policy: CachePolicy) -> Option<Url> {
-        #[cfg(unix)]
         {
             let leader = self.get_leader(policy);
             if let Some(path) = &leader.current_working_dir {
@@ -1100,14 +1084,6 @@ impl LocalPane {
             }
             return None;
         }
-
-        #[cfg(windows)]
-        if let Some(fg) = self.divine_foreground_process(policy) {
-            return Url::from_directory_path(fg.cwd).ok();
-        }
-
-        #[allow(unreachable_code)]
-        None
     }
 
     fn divine_process_list(
@@ -1142,10 +1118,6 @@ impl LocalPane {
                     }
 
                     for child in proc.children.values() {
-                        #[cfg(windows)]
-                        if child.console == 0 {
-                            continue;
-                        }
                         find_youngest(child, youngest);
                     }
                 }

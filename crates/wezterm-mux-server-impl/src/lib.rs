@@ -13,7 +13,6 @@ use wezterm_client::domain::{ClientDomain, ClientDomainConfig};
 
 pub mod dispatch;
 pub mod local;
-pub mod pki;
 pub mod sessionhandler;
 
 fn client_domains(config: &config::ConfigHandle) -> Vec<ClientDomainConfig> {
@@ -28,9 +27,6 @@ fn client_domains(config: &config::ConfigHandle) -> Vec<ClientDomainConfig> {
         }
     }
 
-    for tls_client in &config.tls_clients {
-        domains.push(ClientDomainConfig::Tls(tls_client.clone()));
-    }
     domains
 }
 
@@ -85,8 +81,4 @@ fn update_mux_domains_impl(config: &ConfigHandle, is_standalone_mux: bool) -> an
     }
 
     Ok(())
-}
-
-lazy_static::lazy_static! {
-    pub static ref PKI: pki::Pki = pki::Pki::init().expect("failed to initialize PKI");
 }
