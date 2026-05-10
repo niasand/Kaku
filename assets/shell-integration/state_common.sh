@@ -1,4 +1,4 @@
-# Shared shell state helpers for first-run and config updates.
+# Shared shell state helpers for config updates.
 
 read_bundled_config_version() {
 	local script_dir="$1"
@@ -127,7 +127,7 @@ persist_config_version() {
 	printf "{\n  \"config_version\": %s%s\n}\n" "$target_version" "$geometry_json" >"$STATE_FILE"
 
 	# Keep a legacy version marker for users still loading older bundled kaku.lua.
-	# This avoids repeated first-run onboarding after upgrades.
+	# This avoids repeated onboarding after upgrades.
 	printf '%s\n' "$target_version" >"$LEGACY_VERSION_FILE"
 	rm -f "$LEGACY_GEOMETRY_FILE"
 }

@@ -49,7 +49,6 @@ mod cell;
 mod color;
 mod config;
 mod daemon;
-mod exec_domain;
 mod font;
 mod frontend;
 pub mod keyassignment;
@@ -58,7 +57,6 @@ pub mod lua;
 pub mod meta;
 pub mod proxy;
 mod scheme_data;
-mod serial;
 mod ssh;
 mod terminal;
 mod tls;
@@ -66,7 +64,6 @@ mod units;
 mod unix;
 mod version;
 pub mod window;
-mod wsl;
 
 pub use crate::config::*;
 pub use background::*;
@@ -74,18 +71,15 @@ pub use bell::*;
 pub use cell::*;
 pub use color::*;
 pub use daemon::*;
-pub use exec_domain::*;
 pub use font::*;
 pub use frontend::*;
 pub use keys::*;
-pub use serial::*;
 pub use ssh::*;
 pub use terminal::*;
 pub use tls::*;
 pub use units::*;
 pub use unix::*;
 pub use version::*;
-pub use wsl::*;
 
 type ErrorCallback = fn(&str);
 
@@ -959,7 +953,7 @@ mod tests {
         );
         assert!(
             !content.contains("\nconfig.color_scheme = 'Kaku Dark'\n"),
-            "generated user config must not pin first-run users to dark mode"
+            "generated user config must not pin users to dark mode"
         );
         assert!(
             content.contains("-- config.color_scheme = 'Kaku Dark'")

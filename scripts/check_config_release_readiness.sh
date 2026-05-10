@@ -7,7 +7,6 @@ cd "$REPO_ROOT"
 VERSION_FILE="assets/shell-integration/config_version.txt"
 HIGHLIGHTS_FILE="assets/shell-integration/config_update_highlights.tsv"
 CHECK_SCRIPT="assets/shell-integration/check_config_version.sh"
-FIRST_RUN_SCRIPT="assets/shell-integration/first_run.sh"
 KAKU_LUA="assets/macos/Kaku.app/Contents/Resources/kaku.lua"
 
 file_contains_literal() {
@@ -48,7 +47,7 @@ if ! awk -F '\t' '
 	exit 1
 fi
 
-for script in "$CHECK_SCRIPT" "$FIRST_RUN_SCRIPT"; do
+for script in "$CHECK_SCRIPT"; do
 	if ! file_contains_literal 'read_bundled_config_version "$SCRIPT_DIR"' "$script"; then
 		echo "Expected $script to read config_version.txt via read_bundled_config_version" >&2
 		exit 1

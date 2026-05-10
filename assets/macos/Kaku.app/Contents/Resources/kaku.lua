@@ -4537,7 +4537,6 @@ wezterm.on('gui-startup', function(cmd)
   local current_version = read_current_config_version()
 
   local state_file = home .. "/.config/kaku/state.json"
-  local is_first_run = false
   local needs_update = false
 
   local function ensure_state_dir()
@@ -4597,36 +4596,15 @@ wezterm.on('gui-startup', function(cmd)
   end
 
   if not state_file_exists then
-    is_first_run = true
+    -- Fresh install: write initial state and proceed to normal startup
+    write_state(current_version, nil)
+    user_version = current_version
   elseif user_version == nil then
     -- Corrupted or manually edited state file: repair with safe defaults.
     write_state(current_version, nil)
     user_version = current_version
   elseif user_version < current_version then
     needs_update = true
-  end
-
-  if is_first_run then
-    -- First run experience
-    ensure_state_dir()
-
-    local resource_dir = wezterm.executable_dir:gsub("MacOS/?$", "Resources")
-    local first_run_script = resource_dir .. "/first_run.sh"
-
-    -- Fallback for dev environment
-    local f_script = io.open(first_run_script, "r")
-    if not f_script then
-      first_run_script = wezterm.executable_dir .. "/../../assets/shell-integration/first_run.sh"
-    else
-      f_script:close()
-    end
-
-    wezterm.mux.spawn_window {
-      args = { 'bash', first_run_script },
-      width = 106,
-      height = 22,
-    }
-    return
   end
 
   if needs_update then

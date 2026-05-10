@@ -268,9 +268,6 @@ for vendor_item in starship.toml fast-syntax-highlighting zsh-autosuggestions zs
 		echo "Warning: missing vendor item: $src_path"
 	fi
 done
-cp assets/shell-integration/first_run.sh "$APP_BUNDLE_OUT/Contents/Resources/"
-chmod +x "$APP_BUNDLE_OUT/Contents/Resources/first_run.sh"
-
 # Explicitly use the logo.icns from assets if available
 if [[ -f "assets/logo.icns" ]]; then
 	cp "assets/logo.icns" "$APP_BUNDLE_OUT/Contents/Resources/terminal.icns"

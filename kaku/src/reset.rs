@@ -288,11 +288,6 @@ mod imp {
             "removed legacy AI chat memory file",
             &mut report,
         )?;
-        remove_file_if_exists(
-            config_home().join("ai_chat_onboarded"),
-            "removed AI chat onboarding flag",
-            &mut report,
-        )?;
         remove_empty_kaku_config_dir(&mut report)?;
 
         report.print();
