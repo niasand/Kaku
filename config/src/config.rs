@@ -2290,10 +2290,6 @@ pub(crate) fn compute_runtime_dir() -> anyhow::Result<PathBuf> {
     Ok(crate::HOME_DIR.join(".local/share/kaku"))
 }
 
-pub fn pki_dir() -> anyhow::Result<PathBuf> {
-    compute_runtime_dir().map(|d| d.join("pki"))
-}
-
 pub fn default_read_timeout() -> Duration {
     Duration::from_secs(60)
 }

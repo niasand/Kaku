@@ -864,19 +864,6 @@ impl SessionHandler {
                 }
             }
 
-            Pdu::GetTlsCreds(_) => {
-                catch(
-                    move || {
-                        let client_cert_pem = PKI.generate_client_cert()?;
-                        let ca_cert_pem = PKI.ca_pem_string()?;
-                        Ok(Pdu::GetTlsCredsResponse(GetTlsCredsResponse {
-                            client_cert_pem,
-                            ca_cert_pem,
-                        }))
-                    },
-                    send_response,
-                );
-            }
             Pdu::WindowTitleChanged(WindowTitleChanged { window_id, title }) => {
                 spawn_into_main_thread(async move {
                     catch(
@@ -999,7 +986,6 @@ impl SessionHandler {
             | Pdu::GetLinesResponse { .. }
             | Pdu::GetCodecVersionResponse { .. }
             | Pdu::WindowWorkspaceChanged { .. }
-            | Pdu::GetTlsCredsResponse { .. }
             | Pdu::GetClientListResponse { .. }
             | Pdu::PaneRemoved { .. }
             | Pdu::PaneFocused { .. }

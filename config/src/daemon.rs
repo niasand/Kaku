@@ -40,7 +40,6 @@ fn open_log(path: PathBuf) -> anyhow::Result<File> {
 }
 
 impl DaemonOptions {
-    #[cfg_attr(windows, allow(dead_code))]
     pub fn pid_file(&self) -> PathBuf {
         self.pid_file
             .as_ref()
