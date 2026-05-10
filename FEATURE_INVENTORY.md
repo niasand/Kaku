@@ -206,7 +206,7 @@
 | 132 | Cmd+Shift+Up 窗口置顶 | Always on Top | Extended | 保留|
 | 133 | Cmd+M 最小化 | | Core |保留 |
 | 134 | DPI 感知 | 按显示器 DPI 缩放 | Core |保留 |
-| 135 | 背景图片 | 可配置终端背景图 | Extended | |
+| 135 | 背景图片 | 可配置终端背景图 | Extended | 保留|
 | 136 | 窗口透明度 | window_background_opacity | Core |保留 |
 | 137 | 背景模糊 | macOS 原生 blur | Core |保留 |
 | 138 | 多层背景系统 | 渐变/图片/纯色叠加 | Extended | 保留|
@@ -243,7 +243,7 @@
 | 153 | Scrollback 大小 | 默认 3500 行 | Core |保留 |
 | 154 | 终端编码 | 默认 UTF-8 | Core |保留 |
 | 155 | kitty 图形协议 | 默认开启 | Core |保留 |
-| 156 | 双向文本 (bidi) | 可配置 | Extended | |
+| 156 | 双向文本 (bidi) | 可配置 | Extended | 移除|
 | 157 | 超链接规则 | URL / file:line:col 自动检测 | Core |保留 |
 | 158 | Bell 设置 | 视觉/听觉 + Dock badge | Core |保留 |
 
@@ -272,7 +272,7 @@
 | 170 | `wezterm.plugin` | Git URL 插件加载 | Core |保留 |
 | 171 | `wezterm.ssh_funcs` | SSH 配置枚举 | Core |保留 |
 | 172 | `wezterm.procinfo` | 进程信息查询 | Core |保留 |
-| 173 | `wezterm.battery_info` | 电池状态 | Extended | |
+| 173 | `wezterm.battery_info` | 电池状态 | Extended | 保留|
 | 174 | `wezterm.nerdfonts` | Nerd Font 图标查找 | Core |保留 |
 | 175 | `wezterm.GLOBAL` | 跨配置重载的共享可变状态 | Core |保留 |
 | 176 | 事件驱动 Lua API | gui-startup / gui-attached / 生命周期事件 | Core |保留 |
@@ -313,7 +313,7 @@
 | 197 | Exec 域 | 自定义进程域 | Extended | 保留|
 | 198 | Serial Port 域 | 串口连接 | Extended | 保留|
 | 199 | Kaku Remote (iOS Bridge) | WebSocket 服务器 + 屏幕共享 + 输入转发 | Extended | 移除|
-| 200 | Kaku Relay | NAT 穿透 WebSocket 中继（独立部署） | Extended |保留 |
+| 200 | Kaku Relay | NAT 穿透 WebSocket 中继（独立部署） | Extended |移除 |
 | 201 | 远程 AI 对话 | iOS 客户端通过 kaku-remote 发起 AI 对话 | AI |移除 |
 | 202 | QR 码配置 | 终端/HTML QR 码生成 | Extended | 移除|
 
@@ -327,10 +327,10 @@
 | 204 | Homebrew 更新 | 自动检测 Homebrew 安装并用 brew upgrade | Extended | 移除|
 | 205 | GUI 后台更新检查 | 周期性检查新版本（默认 3 小时间隔） | Extended | 移除|
 | 206 | 暂存更新 (Staged Update) | 后台下载验证，重启即用 | Extended | 移除|
-| 207 | macOS 通知 | 更新可用/已就绪 Toast | Extended |保留 |
-| 208 | 多实例协调 | 仅主实例显示更新通知 | Extended | 保留|
-| 209 | 7 天过期清理 | 超过 7 天的暂存更新自动清理 | Extended | 保留|
-| 210 | 系统代理支持 | scutil 检测 macOS 代理设置 | Extended | 保留|
+| 207 | macOS 通知 | 更新可用/已就绪 Toast | Extended |移除 |
+| 208 | 多实例协调 | 仅主实例显示更新通知 | Extended | 移除|
+| 209 | 7 天过期清理 | 超过 7 天的暂存更新自动清理 | Extended | 移除|
+| 210 | 系统代理支持 | scutil 检测 macOS 代理设置 | Extended | 移除|
 
 ---
 
