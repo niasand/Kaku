@@ -14,7 +14,7 @@
 4. **Window Snapshots**: Kaku auto-saves multi-tab and multi-pane layouts, restored via `Cmd+Option+Shift+T`, Shell → Restore Previous Window, or the Command Palette.
 5. **AppleScript Dictionary**: Kaku ships a full AppleScript dictionary, so windows, tabs, and panes are scriptable from Shortcuts, Hammerspoon, or any automation tool that drives macOS apps.
 6. **Animated Tab Drag**: Drag a tab and the neighbors slide into place instead of snapping, so reordering reads as one fluid gesture.
-7. **Softer Dark Theme**: Kaku Dark now uses lower-saturation highlight colors and a slightly dimmed foreground, reducing glare on long sessions while keeping the Aura aesthetic.
+7. **Softer Dark Theme**: Kaku Dark now uses lower-saturation highlight colors and a slightly dimmed foreground, reducing glare on long sessions while keeping the overall Kaku look.
 8. **Cold Start and Shell Speed**: Faster startup through Lua bytecode caching, deferred font and config initialization, and cached shell user vars.
 9. **Background Updates**: Updates download in the background and fail closed on checksum mismatch, with more reliable proxy and MacPorts detection along the way.
 10. **Bug Fixes**: Fullscreen crashes, display races, resize gaps, cursor reflow, links, selection, light-theme readability, and TUI copy are all addressed.
@@ -27,7 +27,7 @@
 4. **窗口快照**：Kaku 自动保存多 tab、多 pane 布局，需要时按 `Cmd+Option+Shift+T`，或从 Shell → Restore Previous Window、命令面板恢复。
 5. **AppleScript 字典**：Kaku 内置完整 AppleScript dictionary，窗口、tab、pane 都能被 Shortcuts、Hammerspoon 等自动化工具脚本化驱动。
 6. **拖拽标签页动画**：拖动 tab 时相邻 tab 会平滑让位，不再生硬切换，重新排序变成一个连贯的动作。
-7. **深色主题更柔和**：Kaku Dark 默认调色板降低了高亮色饱和度，前景文字微微调暗，长时间盯屏更不刺眼，整体仍然是 Aura 风格。
+7. **深色主题更柔和**：Kaku Dark 默认调色板降低了高亮色饱和度，前景文字微微调暗，长时间盯屏更不刺眼，整体还是 Kaku 的风格。
 8. **冷启动与 Shell 速度**：通过 Lua 字节码缓存、字体与配置延迟初始化、shell 用户变量缓存，启动更轻。
 9. **后台更新**：更新改为后台下载，checksum 不通过则失败关闭，代理与 MacPorts 检测一并更稳。
 10. **问题修复**：修复全屏崩溃和卡住、显示器竞态、resize 缝隙、光标 reflow、链接、选择、浅色主题可读性和 TUI 复制。
