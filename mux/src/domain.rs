@@ -12,8 +12,8 @@ use crate::window::WindowId;
 use crate::Mux;
 use anyhow::{bail, Context, Error};
 use async_trait::async_trait;
-use config::keyassignment::PaneEncoding;
 use config::configuration;
+use config::keyassignment::PaneEncoding;
 use downcast_rs::{impl_downcast, Downcast};
 use parking_lot::Mutex;
 use portable_pty::{native_pty_system, CommandBuilder, ExitStatus, MasterPty, PtySize, PtySystem};
@@ -378,11 +378,7 @@ impl LocalDomain {
                 config.apply_cmd_defaults(&mut cmd, default_prog, config.default_cwd.as_ref());
                 cmd
             }
-            None => config.build_prog(
-                None,
-                default_prog,
-                config.default_cwd.as_ref(),
-            )?,
+            None => config.build_prog(None, default_prog, config.default_cwd.as_ref())?,
         };
         if let Some(dir) = command_dir {
             cmd.cwd(dir);

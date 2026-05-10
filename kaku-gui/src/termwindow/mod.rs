@@ -1074,7 +1074,6 @@ pub struct TermWindow {
     toast: Option<(Instant, String, Duration)>,
     selection_copy_disabled_hint_shown: bool,
     last_window_title: String,
-
 }
 
 impl TermWindow {

@@ -3,9 +3,9 @@
 use crate::{configuration, ConfigHandle, NewlineCanon};
 use std::sync::Mutex;
 use termwiz::cell::UnicodeVersion;
+use wezterm_bidi::ParagraphDirectionHint;
 use wezterm_term::color::ColorPalette;
 use wezterm_term::config::BidiMode;
-use wezterm_bidi::ParagraphDirectionHint;
 
 #[derive(Debug)]
 pub struct TermConfig {
