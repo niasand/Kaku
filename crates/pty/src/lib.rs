@@ -42,8 +42,6 @@ use downcast_rs::{impl_downcast, Downcast};
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 use std::io::Result as IoResult;
-#[cfg(windows)]
-use std::os::windows::prelude::{AsRawHandle, RawHandle};
 
 pub mod cmdbuilder;
 pub use cmdbuilder::CommandBuilder;
@@ -133,10 +131,6 @@ pub trait Child: std::fmt::Debug + ChildKiller + Downcast + Send {
     /// Returns the process identifier of the child process,
     /// if applicable
     fn process_id(&self) -> Option<u32>;
-    /// Returns the process handle of the child process, if applicable.
-    /// Only available on Windows.
-    #[cfg(windows)]
-    fn as_raw_handle(&self) -> Option<std::os::windows::io::RawHandle>;
 }
 impl_downcast!(Child);
 
