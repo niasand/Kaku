@@ -487,7 +487,6 @@ impl FallbackResolveInfo {
 enum Entity {
     Title,
     CommandPalette,
-    CharSelect,
     PaneSelect,
 }
 
@@ -502,7 +501,6 @@ struct FontConfigInner {
     built_in: RefCell<Arc<FontDatabase>>,
     title_font: RefCell<Option<Rc<LoadedFont>>>,
     pane_select_font: RefCell<Option<Rc<LoadedFont>>>,
-    char_select_font: RefCell<Option<Rc<LoadedFont>>>,
     command_palette_font: RefCell<Option<Rc<LoadedFont>>>,
     fallback_channel: RefCell<Option<Sender<FallbackResolveInfo>>>,
 }
@@ -523,7 +521,6 @@ impl FontConfigInner {
             metrics: RefCell::new(None),
             title_font: RefCell::new(None),
             pane_select_font: RefCell::new(None),
-            char_select_font: RefCell::new(None),
             command_palette_font: RefCell::new(None),
             font_scale: RefCell::new(1.0),
             dpi: RefCell::new(dpi),
@@ -541,7 +538,6 @@ impl FontConfigInner {
         fonts.clear();
         self.title_font.borrow_mut().take();
         self.pane_select_font.borrow_mut().take();
-        self.char_select_font.borrow_mut().take();
         self.command_palette_font.borrow_mut().take();
         self.metrics.borrow_mut().take();
         *self.font_dirs.borrow_mut() = Arc::new(FontDatabase::with_font_dirs(config)?);
@@ -638,10 +634,6 @@ impl FontConfigInner {
                 config.command_palette_font_size,
                 config.command_palette_font.as_ref(),
             ),
-            Entity::CharSelect => (
-                config.char_select_font_size,
-                config.char_select_font.as_ref(),
-            ),
             Entity::PaneSelect => (
                 config.pane_select_font_size,
                 config.pane_select_font.as_ref(),
@@ -708,20 +700,6 @@ impl FontConfigInner {
         let loaded = self.make_entity_font_impl(myself, Entity::CommandPalette)?;
 
         command_palette_font.replace(Rc::clone(&loaded));
-
-        Ok(loaded)
-    }
-
-    fn char_select_font(&self, myself: &Rc<Self>) -> anyhow::Result<Rc<LoadedFont>> {
-        let mut char_select_font = self.char_select_font.borrow_mut();
-
-        if let Some(entry) = char_select_font.as_ref() {
-            return Ok(Rc::clone(entry));
-        }
-
-        let loaded = self.make_entity_font_impl(myself, Entity::CharSelect)?;
-
-        char_select_font.replace(Rc::clone(&loaded));
 
         Ok(loaded)
     }
@@ -1110,10 +1088,6 @@ impl FontConfiguration {
 
     pub fn pane_select_font(&self) -> anyhow::Result<Rc<LoadedFont>> {
         self.inner.pane_select_font(&self.inner)
-    }
-
-    pub fn char_select_font(&self) -> anyhow::Result<Rc<LoadedFont>> {
-        self.inner.char_select_font(&self.inner)
     }
 
     /// Given a text style, load (with caching) the font that best

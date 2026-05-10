@@ -2,7 +2,6 @@
 members = [
   "crates/bidi",
   "deps/cairo",
-  "kaku",
   "crates/wezterm-blob-leases",
   "crates/wezterm-cell",
   "crates/wezterm-escape-parser",
@@ -264,6 +263,7 @@ wezterm-term = { path = "term" }
 wezterm-toast-notification = { path = "crates/wezterm-toast-notification" }
 wezterm-uds = { path = "crates/wezterm-uds" }
 wezterm-version = { path = "crates/wezterm-version" }
+winapi = { version = "0.3", features = ["winbase", "winerror", "winnls", "winuser", "consoleapi", "handleapi", "fileapi", "synchapi"] }
 # macOS-only: only compile Metal backend (removes Vulkan, DX12, GL)
 wgpu = { version = "25.0.2", default-features = false, features = ["metal", "wgsl"] }
 whoami = "1.5"

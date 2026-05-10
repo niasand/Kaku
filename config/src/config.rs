@@ -16,7 +16,6 @@ use crate::keyassignment::{
 use crate::keys::{DeferredKeyCode, Key, KeyNoAction, LeaderKey, Mouse};
 use crate::lua::make_lua_context;
 use crate::ssh::{SshBackend, SshDomain};
-use crate::tls::{TlsDomainClient, TlsDomainServer};
 use crate::units::Dimension;
 use crate::unix::UnixDomain;
 use crate::{
@@ -141,19 +140,6 @@ pub struct Config {
 
     #[dynamic(default)]
     pub window_frame: WindowFrameConfig,
-
-    /// Font to use for CharSelect
-    #[dynamic(default)]
-    pub char_select_font: Option<TextStyle>,
-
-    #[dynamic(default = "default_char_select_font_size")]
-    pub char_select_font_size: f64,
-
-    #[dynamic(default = "default_char_select_fg_color")]
-    pub char_select_fg_color: RgbaColor,
-
-    #[dynamic(default = "default_char_select_bg_color")]
-    pub char_select_bg_color: RgbaColor,
 
     /// Font to use for ActivateCommandPalette
     #[dynamic(default)]
@@ -373,15 +359,6 @@ pub struct Config {
 
     #[dynamic(default)]
     pub ssh_backend: SshBackend,
-
-    /// When running in server mode, defines configuration for
-    /// each of the endpoints that we'll listen for connections
-    #[dynamic(default)]
-    pub tls_servers: Vec<TlsDomainServer>,
-
-    /// The set of tls domains that we can connect to as a client
-    #[dynamic(default)]
-    pub tls_clients: Vec<TlsDomainClient>,
 
     /// Constrains the rate at which the multiplexer client will
     /// speculatively fetch line data.
@@ -1572,9 +1549,6 @@ impl Config {
                 check_domain(&d.name, "ssh domain")?;
             }
         }
-        for d in &self.tls_clients {
-            check_domain(&d.name, "tls domain")?;
-        }
         Ok(())
     }
 
@@ -1998,18 +1972,6 @@ fn default_split_thickness() -> f32 {
 fn default_integrated_title_buttons() -> Vec<IntegratedTitleButton> {
     use IntegratedTitleButton::*;
     vec![Hide, Maximize, Close]
-}
-
-fn default_char_select_font_size() -> f64 {
-    18.0
-}
-
-fn default_char_select_fg_color() -> RgbaColor {
-    SrgbaTuple(0.75, 0.75, 0.75, 1.0).into()
-}
-
-fn default_char_select_bg_color() -> RgbaColor {
-    (0x33, 0x33, 0x33).into()
 }
 
 fn default_command_palette_font_size() -> f64 {

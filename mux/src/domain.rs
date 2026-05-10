@@ -297,49 +297,7 @@ impl LocalDomain {
     }
 
     async fn fixup_command(&self, cmd: &mut CommandBuilder) -> anyhow::Result<()> {
-        if let Some(wsl) = self.resolve_wsl_domain() {
-            let mut args: Vec<OsString> = cmd.get_argv().clone();
-
-            if args.is_empty() {
-                if let Some(def_prog) = &wsl.default_prog {
-                    for arg in def_prog {
-                        args.push(arg.into());
-                    }
-                }
-            }
-
-            let mut argv: Vec<OsString> = vec![
-                "wsl.exe".into(),
-                "--distribution".into(),
-                wsl.distribution
-                    .as_deref()
-                    .unwrap_or(wsl.name.as_str())
-                    .into(),
-            ];
-
-            if let Some(cwd) = cmd.get_cwd() {
-                argv.push("--cd".into());
-                argv.push(cwd.into());
-            }
-
-            if let Some(user) = &wsl.username {
-                argv.push("--user".into());
-                argv.push(user.into());
-            }
-
-            if !args.is_empty() {
-                argv.push("--exec".into());
-                for arg in args {
-                    argv.push(arg);
-                }
-            }
-
-            // TODO: process env list and update WLSENV so that they
-            // get passed through
-
-            cmd.clear_cwd();
-            *cmd.get_argv_mut() = argv;
-        } else if Path::new("/.flatpak-info").exists() {
+        if Path::new("/.flatpak-info").exists() {
             // We're running inside a flatpak sandbox.
             // Run the command outside the sandbox via flatpak-spawn
             let mut args = vec![
@@ -423,11 +381,7 @@ impl LocalDomain {
     ) -> anyhow::Result<CommandBuilder> {
         let config = configuration();
 
-        let wsl = self.resolve_wsl_domain();
-        let default_prog = wsl
-            .as_ref()
-            .map(|wsl| wsl.default_prog.as_ref())
-            .unwrap_or(config.default_prog.as_ref());
+        let default_prog = config.default_prog.as_ref();
 
         let mut cmd = match command {
             Some(mut cmd) => {
@@ -437,9 +391,7 @@ impl LocalDomain {
             None => config.build_prog(
                 None,
                 default_prog,
-                wsl.as_ref()
-                    .map(|wsl| wsl.default_cwd.as_ref())
-                    .unwrap_or(config.default_cwd.as_ref()),
+                config.default_cwd.as_ref(),
             )?,
         };
         if let Some(dir) = command_dir {
@@ -655,11 +607,7 @@ impl Domain for LocalDomain {
     }
 
     async fn domain_label(&self) -> String {
-        if let Some(wsl) = self.resolve_wsl_domain() {
-            wsl.distribution.unwrap_or_else(|| self.name.to_string())
-        } else {
-            self.name.to_string()
-        }
+        self.name.to_string()
     }
 
     async fn attach(&self, _window_id: Option<WindowId>) -> anyhow::Result<()> {

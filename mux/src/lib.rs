@@ -60,7 +60,6 @@ use domain::{Domain, DomainId, DomainState, SplitSource};
 use filedescriptor::{
     poll, pollfd, socketpair, AsRawSocketDescriptor, FileDescriptor, POLLHUP, POLLIN,
 };
-#[cfg(unix)]
 use libc::{c_int, EBADF, EIO, SOL_SOCKET, SO_RCVBUF, SO_SNDBUF};
 use log::error;
 use metrics::histogram;
@@ -72,8 +71,6 @@ use portable_pty::{CommandBuilder, ExitStatus, PtySize};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::io::{Read, Write};
-#[cfg(windows)]
-use std::os::raw::c_int;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread;
@@ -83,8 +80,6 @@ use termwiz::escape::osc::{ITermProprietary, OperatingSystemCommand};
 use termwiz::escape::{Action, CSI};
 use thiserror::*;
 use wezterm_term::{Clipboard, ClipboardSelection, DownloadHandler, TerminalSize};
-#[cfg(windows)]
-use winapi::um::winsock2::{SOL_SOCKET, SO_RCVBUF, SO_SNDBUF};
 
 pub mod activity;
 pub mod client;

@@ -1,10 +1,9 @@
 use crate::domain::{ClientDomain, ClientDomainConfig};
 use crate::pane::ClientPane;
 use anyhow::{anyhow, bail, Context};
-use async_ossl::AsyncSslStream;
 use async_trait::async_trait;
 use codec::*;
-use config::{configuration, SshDomain, TlsDomainClient, UnixDomain, UnixTarget};
+use config::{configuration, SshDomain, UnixDomain, UnixTarget};
 use filedescriptor::FileDescriptor;
 use futures::FutureExt;
 use mux::client::ClientId;
@@ -13,8 +12,6 @@ use mux::domain::DomainId;
 use mux::pane::PaneId;
 use mux::ssh::ssh_connect_with_ui;
 use mux::Mux;
-use openssl::ssl::{SslConnector, SslFiletype, SslMethod};
-use openssl::x509::X509;
 use portable_pty::Child;
 use smol::channel::{bounded, unbounded, Receiver, Sender};
 use smol::prelude::*;
@@ -539,7 +536,6 @@ where
 struct Reconnectable {
     config: ClientDomainConfig,
     stream: Option<Box<dyn AsyncReadAndWrite>>,
-    tls_creds: Option<GetTlsCredsResponse>,
 }
 
 struct SshStream {
@@ -603,22 +599,7 @@ impl Reconnectable {
         Self {
             config,
             stream,
-            tls_creds: None,
         }
-    }
-
-    fn tls_creds_path(&self) -> anyhow::Result<PathBuf> {
-        let path = config::pki_dir()?.join(self.config.name());
-        std::fs::create_dir_all(&path)?;
-        Ok(path)
-    }
-
-    fn tls_creds_ca_path(&self) -> anyhow::Result<PathBuf> {
-        Ok(self.tls_creds_path()?.join("ca.pem"))
-    }
-
-    fn tls_creds_cert_path(&self) -> anyhow::Result<PathBuf> {
-        Ok(self.tls_creds_path()?.join("cert.pem"))
     }
 
     fn take_stream(&mut self) -> Option<Box<dyn AsyncReadAndWrite>> {
@@ -635,7 +616,6 @@ impl Reconnectable {
             // get disconnected it it dies, so respawning it would not preserve
             // the set of tabs and we'd have confusing and inconsistent state
             ClientDomainConfig::Unix(_) => false,
-            ClientDomainConfig::Tls(_) => true,
             // It *does* make sense to reconnect with an ssh session, but we
             // need to grow some smarts about whether the disconnect was because
             // we sent CTRL-D to close the last session, or whether it was a network
@@ -655,7 +635,6 @@ impl Reconnectable {
             ClientDomainConfig::Unix(unix_dom) => {
                 self.unix_connect(unix_dom, initial, ui, no_auto_start)
             }
-            ClientDomainConfig::Tls(tls) => self.tls_connect(tls, initial, ui),
             ClientDomainConfig::Ssh(ssh) => self.ssh_connect(ssh, initial, ui),
         }
     }
