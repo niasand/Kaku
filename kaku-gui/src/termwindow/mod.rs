@@ -75,7 +75,6 @@ use wezterm_toast_notification::ToastNotification;
 
 pub mod background;
 pub mod box_model;
-pub mod charselect;
 pub mod clipboard;
 pub mod keyevent;
 pub mod modal;
@@ -3673,32 +3672,6 @@ impl TermWindow {
             .unwrap_or(false)
     }
 
-    fn show_input_selector(&mut self, args: &config::keyassignment::InputSelector) {
-        let mux = Mux::get();
-        let tab = match mux.get_active_tab_for_window(self.mux_window_id) {
-            Some(tab) => tab,
-            None => return,
-        };
-
-        // Ignore any current overlay: we're going to cancel it out below
-        // and we don't want this new one to reference that cancelled pane
-        let pane = match self.get_active_pane_no_overlay() {
-            Some(pane) => pane,
-            None => return,
-        };
-
-        let args = args.clone();
-
-        let gui_win = GuiWin::new(self);
-        let pane = MuxPane(pane.pane_id());
-
-        let (overlay, future) = start_overlay(self, &tab, move |_tab_id, term| {
-            crate::overlay::selector::selector(term, args, gui_win, pane)
-        });
-        self.assign_overlay(tab.tab_id(), overlay);
-        promise::spawn::spawn(future).detach();
-    }
-
     fn show_prompt_input_line(&mut self, args: &PromptInputLine) {
         let mux = Mux::get();
         let tab = match mux.get_active_tab_for_window(self.mux_window_id) {
@@ -4662,10 +4635,6 @@ impl TermWindow {
                 let modal = crate::termwindow::paneselect::PaneSelector::new(self, args);
                 self.set_modal(Rc::new(modal));
             }
-            CharSelect(args) => {
-                let modal = crate::termwindow::charselect::CharSelector::new(self, args);
-                self.set_modal(Rc::new(modal));
-            }
             ResetTerminal => {
                 pane.perform_actions(vec![termwiz::escape::Action::Esc(
                     termwiz::escape::Esc::Code(termwiz::escape::EscCode::FullReset),
@@ -4679,7 +4648,6 @@ impl TermWindow {
                 self.set_modal(Rc::new(modal));
             }
             PromptInputLine(args) => self.show_prompt_input_line(args),
-            InputSelector(args) => self.show_input_selector(args),
             Confirmation(args) => self.show_confirmation(args),
             SetPaneEncoding(encoding) => {
                 let encoding: PaneEncoding = *encoding;

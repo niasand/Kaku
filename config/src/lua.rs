@@ -1,4 +1,3 @@
-use crate::exec_domain::{ExecDomain, ValueOrFunc};
 use crate::keyassignment::KeyAssignment;
 use crate::{
     Config, FontAttributes, FontStretch, FontStyle, FontWeight, FreeTypeLoadTarget, RgbaColor,
@@ -267,10 +266,6 @@ pub fn make_lua_context(config_file: &Path) -> anyhow::Result<Lua> {
         for dir in crate::CONFIG_DIRS.iter() {
             prefix_path(&mut path_array, dir);
         }
-        path_array.insert(
-            2,
-            format!("{}/plugins/?/plugin/init.lua", crate::DATA_DIR.display()),
-        );
 
         if let Ok(exe) = std::env::current_exe() {
             if let Some(path) = exe.parent() {
@@ -362,16 +357,6 @@ end
         wezterm_mod.set("target_triple", crate::wezterm_target_triple())?;
         wezterm_mod.set("version", crate::wezterm_version())?;
         wezterm_mod.set("home_dir", crate::HOME_DIR.to_str())?;
-        wezterm_mod.set(
-            "running_under_wsl",
-            lua.create_function(|_, ()| Ok(crate::running_under_wsl()))?,
-        )?;
-
-        wezterm_mod.set(
-            "default_wsl_domains",
-            lua.create_function(|_, ()| Ok(crate::WslDomain::default_domains()))?,
-        )?;
-
         wezterm_mod.set("font", lua.create_function(font)?)?;
         wezterm_mod.set(
             "font_with_fallback",
@@ -388,8 +373,6 @@ end
 
         lua.set_named_registry_value(LUA_REGISTRY_USER_CALLBACK_COUNT, 0)?;
         wezterm_mod.set("action_callback", lua.create_function(action_callback)?)?;
-        wezterm_mod.set("exec_domain", lua.create_function(exec_domain)?)?;
-
         wezterm_mod.set("utf16_to_utf8", lua.create_function(utf16_to_utf8)?)?;
         wezterm_mod.set("split_by_newlines", lua.create_function(split_by_newlines)?)?;
         wezterm_mod.set("on", lua.create_function(register_event)?)?;
@@ -730,39 +713,6 @@ pub fn wrap_callback<'lua>(lua: &'lua Lua, callback: mlua::Function) -> mlua::Re
 fn action_callback<'lua>(lua: &'lua Lua, callback: mlua::Function) -> mlua::Result<KeyAssignment> {
     let user_event_id = wrap_callback(lua, callback)?;
     Ok(KeyAssignment::EmitEvent(user_event_id))
-}
-
-fn exec_domain<'lua>(
-    lua: &'lua Lua,
-    (name, fixup_command, label): (String, mlua::Function, Option<mlua::Value>),
-) -> mlua::Result<ExecDomain> {
-    let fixup_command = {
-        let event_name = format!("exec-domain-{name}");
-        register_event(lua, (event_name.clone(), fixup_command))?;
-        event_name
-    };
-
-    let label = match label {
-        Some(Value::Function(callback)) => {
-            let event_name = format!("exec-domain-{name}-label");
-            register_event(lua, (event_name.clone(), callback))?;
-            Some(ValueOrFunc::Func(event_name))
-        }
-        Some(Value::String(value)) => Some(ValueOrFunc::Value(lua_value_to_dynamic(
-            Value::String(value),
-        )?)),
-        Some(_) => {
-            return Err(mlua::Error::external(
-                "label function parameter must be either a string or a lua function",
-            ));
-        }
-        None => None,
-    };
-    Ok(ExecDomain {
-        name,
-        fixup_command,
-        label,
-    })
 }
 
 fn split_by_newlines<'lua>(_: &'lua Lua, text: String) -> mlua::Result<Vec<String>> {

@@ -851,10 +851,6 @@ fn fatal_toast_notification(title: &str, message: &str) {
     }
 
     persistent_toast_notification(title, message);
-    // We need a short delay otherwise the notification
-    // will not show
-    #[cfg(windows)]
-    std::thread::sleep(std::time::Duration::new(2, 0));
 }
 
 fn notify_on_panic() {
@@ -919,15 +915,6 @@ fn run() -> anyhow::Result<()> {
     // Inform the system of our AppUserModelID.
     // Without this, our toast notifications won't be correctly
     // attributed to our application.
-    #[cfg(windows)]
-    {
-        unsafe {
-            ::windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(
-                ::windows::core::PCWSTR(wide_string("sh.kaku.Kaku").as_ptr()),
-            )
-            .unwrap();
-        }
-    }
 
     let opts = Opt::parse();
 
@@ -948,12 +935,6 @@ fn run() -> anyhow::Result<()> {
     // the command window, which means that it will appear to the user
     // that we hung at the end, when in reality the shell is waiting for
     // input but didn't know to re-draw the prompt.
-    #[cfg(windows)]
-    unsafe {
-        if opts.attach_parent_console {
-            winapi::um::wincon::AttachConsole(winapi::um::wincon::ATTACH_PARENT_PROCESS);
-        }
-    };
 
     startup_trace::mark("env_bootstrap::bootstrap() start");
     env_bootstrap::bootstrap();

@@ -4,7 +4,6 @@ use crate::color::{
     ColorSchemeFile, HsbTransform, Palette, SrgbaTuple, TabBarStyle, WindowFrameConfig,
 };
 use crate::daemon::DaemonOptions;
-use crate::exec_domain::ExecDomain;
 use crate::font::{
     AllowSquareGlyphOverflow, DisplayPixelGeometry, FontLocatorSelection, FontRasterizerSelection,
     FontShaperSelection, FreeTypeLoadFlags, FreeTypeLoadTarget, StyleRule, TextStyle,
@@ -20,12 +19,11 @@ use crate::ssh::{SshBackend, SshDomain};
 use crate::tls::{TlsDomainClient, TlsDomainServer};
 use crate::units::Dimension;
 use crate::unix::UnixDomain;
-use crate::wsl::WslDomain;
 use crate::{
     default_config_with_overrides_applied, default_one_point_oh, default_one_point_oh_f64,
     default_true, default_win32_acrylic_accent_color, CellWidth, GpuInfo,
     IntegratedTitleButtonColor, KeyMapPreference, LoadedConfig, MouseEventTriggerMods, RgbaColor,
-    SerialDomain, SystemBackdrop, WebGpuPowerPreference, CONFIG_DIRS, CONFIG_FILE_OVERRIDE,
+    SystemBackdrop, WebGpuPowerPreference, CONFIG_DIRS, CONFIG_FILE_OVERRIDE,
     CONFIG_OVERRIDES, CONFIG_SKIP,
 };
 use anyhow::Context;
@@ -365,15 +363,6 @@ pub struct Config {
 
     #[dynamic(default)]
     pub webgpu_preferred_adapter: Option<GpuInfo>,
-
-    #[dynamic(default)]
-    pub wsl_domains: Option<Vec<WslDomain>>,
-
-    #[dynamic(default)]
-    pub exec_domains: Vec<ExecDomain>,
-
-    #[dynamic(default)]
-    pub serial_ports: Vec<SerialDomain>,
 
     /// The set of unix domains
     #[dynamic(default = "UnixDomain::default_unix_domains")]
@@ -1079,14 +1068,6 @@ impl Config {
         }
     }
 
-    pub fn wsl_domains(&self) -> Vec<WslDomain> {
-        if let Some(domains) = &self.wsl_domains {
-            domains.clone()
-        } else {
-            WslDomain::default_domains()
-        }
-    }
-
     pub fn update_ulimit(&self) -> anyhow::Result<()> {
         #[cfg(unix)]
         {
@@ -1591,14 +1572,6 @@ impl Config {
                 check_domain(&d.name, "ssh domain")?;
             }
         }
-        for d in &self.exec_domains {
-            check_domain(&d.name, "exec domain")?;
-        }
-        if let Some(domains) = &self.wsl_domains {
-            for d in domains {
-                check_domain(&d.name, "wsl domain")?;
-            }
-        }
         for d in &self.tls_clients {
             check_domain(&d.name, "tls domain")?;
         }
@@ -1955,10 +1928,6 @@ impl Config {
             }
         }
 
-        // Augment WSLENV so that TERM related environment propagates
-        // across the win32/wsl boundary
-        let mut wsl_env = std::env::var("WSLENV").ok();
-
         // If we are running as an appimage, we will have "$APPIMAGE"
         // and "$APPDIR" set in the wezterm process. These will be
         // propagated to the child processes. Since some apps (including
@@ -1971,20 +1940,7 @@ impl Config {
         cmd.env_remove("OWD");
 
         for (k, v) in &self.set_environment_variables {
-            if k == "WSLENV" {
-                wsl_env.replace(v.clone());
-            } else {
-                cmd.env(k, v);
-            }
-        }
-
-        if wsl_env.is_some() || cfg!(windows) || crate::version::running_under_wsl() {
-            let mut wsl_env = wsl_env.unwrap_or_default();
-            if !wsl_env.is_empty() {
-                wsl_env.push(':');
-            }
-            wsl_env.push_str("TERM:COLORTERM:TERM_PROGRAM:TERM_PROGRAM_VERSION");
-            cmd.env("WSLENV", wsl_env);
+            cmd.env(k, v);
         }
 
         #[cfg(unix)]

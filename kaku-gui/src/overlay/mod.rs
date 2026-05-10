@@ -2,9 +2,31 @@ use crate::termwindow::TermWindow;
 use mux::pane::{Pane, PaneId};
 use mux::tab::{Tab, TabId};
 use mux::termwiztermtab::{allocate, TermWizTerminal};
+use nucleo_matcher::pattern::Pattern;
+use nucleo_matcher::{Matcher, Utf32Str};
+use std::cell::RefCell;
 use std::pin::Pin;
 use std::sync::Arc;
 use wezterm_term::{TerminalConfiguration, TerminalSize};
+
+thread_local! {
+    pub static MATCHER: RefCell<Matcher> = RefCell::new(Matcher::new(nucleo_matcher::Config::DEFAULT));
+}
+
+pub fn matcher_score(pattern: &Pattern, s: &str) -> Option<u32> {
+    MATCHER.with_borrow_mut(|matcher| {
+        let mut buf = vec![];
+        pattern.score(Utf32Str::new(s, &mut buf), matcher)
+    })
+}
+
+pub fn matcher_pattern(s: &str) -> Pattern {
+    nucleo_matcher::pattern::Pattern::parse(
+        s,
+        nucleo_matcher::pattern::CaseMatching::Ignore,
+        nucleo_matcher::pattern::Normalization::Smart,
+    )
+}
 
 pub mod confirm;
 pub mod confirm_close_pane;
@@ -12,7 +34,6 @@ pub mod copy;
 pub mod launcher;
 pub mod prompt;
 pub mod quickselect;
-pub mod selector;
 
 #[cfg(not(target_os = "macos"))]
 pub use confirm_close_pane::confirm_close_window;

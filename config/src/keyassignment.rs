@@ -478,84 +478,6 @@ pub struct PaneSelectArguments {
     pub show_pane_ids: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, FromDynamic, ToDynamic)]
-pub enum CharSelectGroup {
-    RecentlyUsed,
-    SmileysAndEmotion,
-    PeopleAndBody,
-    AnimalsAndNature,
-    FoodAndDrink,
-    TravelAndPlaces,
-    Activities,
-    Objects,
-    Symbols,
-    Flags,
-    NerdFonts,
-    UnicodeNames,
-    ShortCodes,
-}
-
-// next is default, previous is the reverse
-macro_rules! char_select_group_impl_next_prev {
-    ($($x:ident => $y:ident),+ $(,)?) => {
-        impl CharSelectGroup {
-            pub const fn next(self) -> Self {
-                match self {
-                    $(CharSelectGroup::$x => CharSelectGroup::$y),+
-                }
-            }
-
-            pub const fn previous(self) -> Self {
-                match self {
-                    $(CharSelectGroup::$y => CharSelectGroup::$x),+
-                }
-            }
-        }
-    };
-}
-
-char_select_group_impl_next_prev! (
-    RecentlyUsed => SmileysAndEmotion,
-    SmileysAndEmotion => PeopleAndBody,
-    PeopleAndBody => AnimalsAndNature,
-    AnimalsAndNature => FoodAndDrink,
-    FoodAndDrink => TravelAndPlaces,
-    TravelAndPlaces => Activities,
-    Activities => Objects,
-    Objects => Symbols,
-    Symbols => Flags,
-    Flags => NerdFonts,
-    NerdFonts => UnicodeNames,
-    UnicodeNames => ShortCodes,
-    ShortCodes => RecentlyUsed,
-);
-
-impl Default for CharSelectGroup {
-    fn default() -> Self {
-        Self::SmileysAndEmotion
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, FromDynamic, ToDynamic)]
-pub struct CharSelectArguments {
-    #[dynamic(default)]
-    pub group: Option<CharSelectGroup>,
-    #[dynamic(default = "default_true")]
-    pub copy_on_select: bool,
-    #[dynamic(default)]
-    pub copy_to: ClipboardCopyDestination,
-}
-
-impl Default for CharSelectArguments {
-    fn default() -> Self {
-        Self {
-            group: None,
-            copy_on_select: true,
-            copy_to: ClipboardCopyDestination::default(),
-        }
-    }
-}
-
 #[derive(Default, Debug, Clone, PartialEq, FromDynamic, ToDynamic)]
 pub struct QuickSelectArguments {
     /// Overrides the main quick_select_alphabet config
@@ -593,45 +515,6 @@ pub struct PromptInputLine {
 
 fn default_prompt() -> String {
     "> ".to_string()
-}
-
-#[derive(Debug, Clone, PartialEq, FromDynamic, ToDynamic)]
-pub struct InputSelectorEntry {
-    pub label: String,
-    pub id: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, FromDynamic, ToDynamic)]
-pub struct InputSelector {
-    pub action: Box<KeyAssignment>,
-    #[dynamic(default)]
-    pub title: String,
-
-    pub choices: Vec<InputSelectorEntry>,
-
-    #[dynamic(default)]
-    pub fuzzy: bool,
-
-    #[dynamic(default = "default_num_alphabet")]
-    pub alphabet: String,
-
-    #[dynamic(default = "default_description")]
-    pub description: String,
-
-    #[dynamic(default = "default_fuzzy_description")]
-    pub fuzzy_description: String,
-}
-
-fn default_num_alphabet() -> String {
-    "1234567890abcdefghilmnopqrstuvwxyz".to_string()
-}
-
-fn default_description() -> String {
-    "Select an item and press Enter = accept,  Esc = cancel,  / = filter".to_string()
-}
-
-fn default_fuzzy_description() -> String {
-    "Fuzzy matching: ".to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, FromDynamic, ToDynamic)]
@@ -764,7 +647,6 @@ pub enum KeyAssignment {
     TogglePaneSplitDirection,
     SplitPane(SplitPane),
     PaneSelect(PaneSelectArguments),
-    CharSelect(CharSelectArguments),
 
     ResetTerminal,
     OpenUri(String),
@@ -773,7 +655,6 @@ pub enum KeyAssignment {
     ActivateWindowRelative(isize),
     ActivateWindowRelativeNoWrap(isize),
     PromptInputLine(PromptInputLine),
-    InputSelector(InputSelector),
     Confirmation(Confirmation),
 }
 impl_lua_conversion_dynamic!(KeyAssignment);

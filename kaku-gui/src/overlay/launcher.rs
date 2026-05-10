@@ -8,7 +8,7 @@
 use crate::commands::{derive_command_from_key_assignment, is_internal_emit_event_name};
 use crate::inputmap::InputMap;
 use crate::overlay::quickselect;
-use crate::overlay::selector::{matcher_pattern, matcher_score};
+use crate::overlay::{matcher_pattern, matcher_score};
 use crate::termwindow::TermWindowNotif;
 use config::configuration;
 use config::keyassignment::KeyAssignment::SetPaneEncoding;

@@ -77,7 +77,6 @@ chrono = {version="0.4", default-features=false, features=["unstable-locales", "
 clap = {version="4.0", features=["derive"]}
 clap_complete = "4.4"
 clap_complete_fig = "4.0"
-clipboard-win = "2.2"
 cocoa = "=0.25.0"
 codec = { path = "crates/codec" }
 color-funcs = { path = "lua-api-crates/color-funcs" }
@@ -95,8 +94,6 @@ dhat = "0.3"
 dirs-next = "2.0"
 dns-lookup = "2.0"
 downcast-rs = "1.0"
-dwrote = "0.11"
-embed-resource = "1.7"
 emojis = "0.6"
 encoding_rs = "0.8"
 enum-display-derive = "0.1"
@@ -121,7 +118,6 @@ futures-lite = "2.3"
 futures-util = "0.3"
 gethostname = "0.5"
 getrandom = "0.3.1"
-git2 = { version = "0.20", default-features = false, features = ["https", "vendored-libgit2", "vendored-openssl"] }
 gl_generator = "0.14"
 glium = { version = "0.35", default-features = false }
 governor = {version="0.5", default-features=false, features=["std"]}
@@ -164,7 +160,6 @@ mux-lua = { path = "lua-api-crates/mux" }
 names = { version = "0.12", default-features = false }
 nix = "0.29"
 notify = "5.0.0"
-ntapi = "0.4"
 nucleo-matcher = "0.3"
 num = "0.4"
 num-derive = "0.4"
@@ -185,7 +180,6 @@ phf = {version="0.11", default-features=false}
 phf_codegen = "0.10"
 pkg-config = "0.3"
 plist = "1.7"
-plugin = { path = "lua-api-crates/plugin" }
 portable-pty = { path = "crates/pty" }
 predicates = "3.0"
 proc-macro2 = "1.0"
@@ -198,7 +192,6 @@ ratelim= { path = "crates/ratelim" }
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
 raw-window-handle = "0.6"
 rayon = "1.10"
-rcgen = "0.12"
 regex = "1"
 reqwest = "0.12"
 rustyline = "14"
@@ -210,15 +203,12 @@ serde-funcs = { path = "lua-api-crates/serde-funcs" }
 serde_json = "1.0"
 serde_with = {version="2.0", features = ["chrono_0_4"]}
 serde_yaml = "0.9"
-serial2 = "0.2"
 sha2 = "0.10"
 share-data = { path = "lua-api-crates/share-data" }
-shared_library = "0.1"
 shell-words = "1.1"
 shlex = "1.1"
 signal-hook = "0.3"
 siphasher = "1.0.1"
-smithay-client-toolkit = {version = "0.19", default-features=false}
 smol = "2.0"
 socket2 = "0.5"
 spa = "0.3.1"
@@ -243,7 +233,6 @@ tiny-skia = "0.11"
 tokio = "1.43"
 toml = "0.8"
 ucd-trie = {version="0.1", default-features=false}
-uds_windows = "1.1"
 umask = { path = "crates/umask" }
 unicode-normalization = "0.1.24"
 unicode-segmentation = "1.12"
@@ -254,11 +243,6 @@ uuid = "1.13"
 varbincode = "0.1"
 vtparse = { version="0.7", path="crates/vtparse", default-features=false }
 walkdir = "2"
-wayland-backend = "0.3.5"
-wayland-client = "0.31"
-wayland-egl = "0.32"
-wayland-protocols = "0.32"
-wayland-protocols-plasma = { version="0.3.6", features=["client"] }
 wezterm-bidi = { version="0.2.3", path = "crates/bidi", default-features=false}
 wezterm-blob-leases = { version="0.1.1", path = "crates/wezterm-blob-leases"}
 wezterm-cell = { path = "crates/wezterm-cell"}
@@ -283,15 +267,8 @@ wezterm-version = { path = "crates/wezterm-version" }
 # macOS-only: only compile Metal backend (removes Vulkan, DX12, GL)
 wgpu = { version = "25.0.2", default-features = false, features = ["metal", "wgsl"] }
 whoami = "1.5"
-winapi = "0.3.9"
 window = {path="window"}
 window-funcs = { path = "lua-api-crates/window-funcs" }
-windows = "0.33.0"
-winreg = "0.10"
-x11 = "2.21"
-xcb = "1.3"
-xcb-imdkit = { version="0.3", git="https://github.com/wezterm/xcb-imdkit-rs.git", rev="212330f7c6c37794d78061a773e8f4f9e4785bbb"}
-xkbcommon = "0.7.0"
 xml-rs = "0.8"
 zbus = "4.2"
 syntect = { version = "5", default-features = false, features = ["default-syntaxes", "default-themes", "regex-onig"] }

@@ -1,5 +1,5 @@
 use crate::commands::{CommandDef, ExpandedCommand};
-use crate::overlay::selector::{matcher_pattern, matcher_score};
+use crate::overlay::{matcher_pattern, matcher_score};
 use crate::termwindow::box_model::*;
 use crate::termwindow::modal::Modal;
 use crate::termwindow::render::corners::{

@@ -1,8 +1,7 @@
 //! A Domain represents an instance of a multiplexer.
 //! For example, the gui frontend has its own domain,
 //! and we can connect to a domain hosted by a mux server
-//! that may be local, running "remotely" inside a WSL
-//! container or actually remote, running on the other end
+//! that may be local or actually remote, running on the other end
 //! of an ssh session somewhere.
 
 use crate::localpane::LocalPane;
@@ -13,13 +12,12 @@ use crate::window::WindowId;
 use crate::Mux;
 use anyhow::{bail, Context, Error};
 use async_trait::async_trait;
-use config::keyassignment::{PaneEncoding, SpawnCommand, SpawnTabDomain};
-use config::{configuration, ExecDomain, SerialDomain, ValueOrFunc, WslDomain};
+use config::keyassignment::PaneEncoding;
+use config::configuration;
 use downcast_rs::{impl_downcast, Downcast};
 use parking_lot::Mutex;
 use portable_pty::{native_pty_system, CommandBuilder, ExitStatus, MasterPty, PtySize, PtySystem};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -275,22 +273,6 @@ impl LocalDomain {
         Ok(Self::with_pty_system(name, native_pty_system()))
     }
 
-    fn resolve_exec_domain(&self) -> Option<ExecDomain> {
-        config::configuration()
-            .exec_domains
-            .iter()
-            .find(|ed| ed.name == self.name)
-            .cloned()
-    }
-
-    fn resolve_wsl_domain(&self) -> Option<WslDomain> {
-        config::configuration()
-            .wsl_domains()
-            .iter()
-            .find(|d| d.name == self.name)
-            .cloned()
-    }
-
     pub fn with_pty_system(name: &str, pty_system: Box<dyn PtySystem + Send>) -> Self {
         let id = alloc_domain_id();
         Self {
@@ -298,24 +280,6 @@ impl LocalDomain {
             id,
             name: name.to_string(),
         }
-    }
-
-    pub fn new_wsl(wsl: WslDomain) -> Result<Self, Error> {
-        Self::new(&wsl.name)
-    }
-
-    pub fn new_exec_domain(exec_domain: ExecDomain) -> anyhow::Result<Self> {
-        Self::new(&exec_domain.name)
-    }
-
-    pub fn new_serial_domain(serial_domain: SerialDomain) -> anyhow::Result<Self> {
-        let port = serial_domain.port.as_ref().unwrap_or(&serial_domain.name);
-        let mut serial = portable_pty::serial::SerialTty::new(&port);
-        if let Some(baud) = serial_domain.baud {
-            serial.set_baud_rate(baud as u32);
-        }
-        let pty_system = Box::new(serial);
-        Ok(Self::with_pty_system(&serial_domain.name, pty_system))
     }
 
     #[cfg(unix)]
@@ -375,68 +339,6 @@ impl LocalDomain {
 
             cmd.clear_cwd();
             *cmd.get_argv_mut() = argv;
-        } else if let Some(ed) = self.resolve_exec_domain() {
-            let mut args = vec![];
-            let mut set_environment_variables = HashMap::new();
-            for arg in cmd.get_argv() {
-                args.push(
-                    arg.to_str()
-                        .ok_or_else(|| anyhow::anyhow!("command argument is not utf8"))?
-                        .to_string(),
-                );
-            }
-            for (k, v) in cmd.iter_full_env_as_str() {
-                set_environment_variables.insert(k.to_string(), v.to_string());
-            }
-            let cwd = match cmd.get_cwd() {
-                Some(cwd) => Some(PathBuf::from(cwd)),
-                None => None,
-            };
-            let spawn_command = SpawnCommand {
-                label: None,
-                domain: SpawnTabDomain::DomainName(ed.name.clone()),
-                args: if args.is_empty() { None } else { Some(args) },
-                set_environment_variables,
-                cwd,
-                encoding: None,
-                position: None,
-            };
-
-            let spawn_command = config::with_lua_config_on_main_thread(|lua| async {
-                let lua = lua.ok_or_else(|| anyhow::anyhow!("missing lua context"))?;
-                let value = config::lua::emit_async_callback(
-                    &*lua,
-                    (ed.fixup_command.clone(), (spawn_command.clone())),
-                )
-                .await?;
-                let cmd: SpawnCommand =
-                    luahelper::from_lua_value_dynamic(value).with_context(|| {
-                        format!(
-                            "interpreting SpawnCommand result from ExecDomain {}",
-                            ed.name
-                        )
-                    })?;
-                Ok(cmd)
-            })
-            .await
-            .with_context(|| format!("calling ExecDomain {} function", ed.name))?;
-
-            // Reinterpret the SpawnCommand into the builder
-
-            cmd.get_argv_mut().clear();
-            if let Some(args) = &spawn_command.args {
-                for arg in args {
-                    cmd.get_argv_mut().push(arg.into());
-                }
-            }
-            cmd.env_clear();
-            for (k, v) in &spawn_command.set_environment_variables {
-                cmd.env(k, v);
-            }
-            cmd.clear_cwd();
-            if let Some(cwd) = &spawn_command.cwd {
-                cmd.cwd(cwd);
-            }
         } else if Path::new("/.flatpak-info").exists() {
             // We're running inside a flatpak sandbox.
             // Run the command outside the sandbox via flatpak-spawn
@@ -753,41 +655,7 @@ impl Domain for LocalDomain {
     }
 
     async fn domain_label(&self) -> String {
-        if let Some(ed) = self.resolve_exec_domain() {
-            match &ed.label {
-                Some(ValueOrFunc::Value(wezterm_dynamic::Value::String(s))) => s.to_string(),
-                Some(ValueOrFunc::Func(label_func)) => {
-                    let label = config::with_lua_config_on_main_thread(|lua| async {
-                        let lua = lua.ok_or_else(|| anyhow::anyhow!("missing lua context"))?;
-                        let value = config::lua::emit_async_callback(
-                            &*lua,
-                            (label_func.clone(), (self.name.clone())),
-                        )
-                        .await?;
-                        let label: String =
-                            luahelper::from_lua_value_dynamic(value).with_context(|| {
-                                format!(
-                                    "interpreting SpawnCommand result from ExecDomain {}",
-                                    ed.name
-                                )
-                            })?;
-                        Ok(label)
-                    })
-                    .await;
-                    match label {
-                        Ok(label) => label,
-                        Err(err) => {
-                            log::error!(
-                                "Error while calling label function for ExecDomain `{}`: {err:#}",
-                                self.name
-                            );
-                            self.name.to_string()
-                        }
-                    }
-                }
-                _ => self.name.to_string(),
-            }
-        } else if let Some(wsl) = self.resolve_wsl_domain() {
+        if let Some(wsl) = self.resolve_wsl_domain() {
             wsl.distribution.unwrap_or_else(|| self.name.to_string())
         } else {
             self.name.to_string()
