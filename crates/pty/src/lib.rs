@@ -268,11 +268,6 @@ impl Child for std::process::Child {
     fn process_id(&self) -> Option<u32> {
         Some(self.id())
     }
-
-    #[cfg(windows)]
-    fn as_raw_handle(&self) -> Option<std::os::windows::io::RawHandle> {
-        Some(std::os::windows::io::AsRawHandle::as_raw_handle(self))
-    }
 }
 
 #[derive(Debug)]

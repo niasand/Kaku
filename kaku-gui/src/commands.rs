@@ -2547,7 +2547,6 @@ fn compute_default_actions() -> Vec<KeyAssignment> {
         ClearScrollback(ScrollbackEraseMode::ScrollbackOnly),
         ClearScrollback(ScrollbackEraseMode::ScrollbackAndViewport),
         QuickSelect,
-        CharSelect(CharSelectArguments::default()),
         ActivateCopyMode,
         ClearKeyTableStack,
         ActivateCommandPalette,
