@@ -151,9 +151,9 @@
 | 97 | Ctrl+Shift+PageUp/Down 移动标签 | | Core | 保留|
 | 98 | Fancy Tab Bar | 富像素标签栏（图标/标题/关闭按钮） | Core | 保留|
 | 99 | Tab Bar 位置 | 顶部或底部（默认底部） | Core | 保留|
-| 100 | 标签索引显示 | 可配置显示/隐藏 | Extended | |
-| 101 | 新建标签按钮 | 可配置显示/隐藏 | Extended | |
-| 102 | 仅单标签时隐藏 Tab Bar | 可配置 | Extended | |
+| 100 | 标签索引显示 | 可配置显示/隐藏 | Extended | 保留|
+| 101 | 新建标签按钮 | 可配置显示/隐藏 | Extended | 保留|
+| 102 | 仅单标签时隐藏 Tab Bar | 可配置 | Extended | 保留|
 | 103 | Bell 指示器 | 未聚焦标签显示 bell 点 | Core | 保留|
 
 ### 3.2 面板分割
@@ -165,14 +165,14 @@
 | 106 | Cmd+Alt+方向键 切换面板 | | Core | 保留|
 | 107 | Cmd+Ctrl+方向键 调整分割 | | Core | 保留|
 | 108 | Cmd+Shift+Enter 缩放面板 | 全屏切换 | Core | 保留|
-| 109 | Cmd+Alt+P 选择面板 | 交互式 | Extended | |
-| 110 | 面板交换 (Swap Pane) | 与活跃面板交换 | Extended | |
-| 111 | 面板移到新标签 | Cmd+Alt+Shift+T | Extended | |
-| 112 | 面板移到新窗口 | Cmd+Alt+Shift+N | Extended | |
-| 113 | 面板旋转 | 顺/逆时针旋转 | Extended | |
-| 114 | 切换分割方向 | Cmd+Shift+S | Extended | |
-| 115 | 按鼠标聚焦面板 | 可配置 pane_focus_follows_mouse | Extended | |
-| 116 | 非活跃面板 HSB 变暗 | 可配置色相/饱和度/亮度偏移 | Extended | |
+| 109 | Cmd+Alt+P 选择面板 | 交互式 | Extended | 保留|
+| 110 | 面板交换 (Swap Pane) | 与活跃面板交换 | Extended | 保留|
+| 111 | 面板移到新标签 | Cmd+Alt+Shift+T | Extended | 保留|
+| 112 | 面板移到新窗口 | Cmd+Alt+Shift+N | Extended | 保留|
+| 113 | 面板旋转 | 顺/逆时针旋转 | Extended |保留 |
+| 114 | 切换分割方向 | Cmd+Shift+S | Extended | 保留|
+| 115 | 按鼠标聚焦面板 | 可配置 pane_focus_follows_mouse | Extended | 保留|
+| 116 | 非活跃面板 HSB 变暗 | 可配置色相/饱和度/亮度偏移 | Extended | 保留|
 
 ### 3.3 输入 & 剪贴板
 
@@ -182,9 +182,9 @@
 | 118 | Cmd+V 粘贴 | | Core | 保留|
 | 119 | 选中即复制 (copy_on_select) | 默认开启 | Core | 保留|
 | 120 | Cmd+K 清空 scrollback | | Core | 保留|
-| 121 | Cmd+Z Shell Undo | 转发 Ctrl+_ 到 shell | Extended | |
-| 122 | 输入广播 | Cmd+Alt+I (当前标签) / Cmd+Shift+I (全部面板) | Extended | |
-| 123 | 编码切换 | 面板字符编码设置 | Extended | |
+| 121 | Cmd+Z Shell Undo | 转发 Ctrl+_ 到 shell | Extended | 保留|
+| 122 | 输入广播 | Cmd+Alt+I (当前标签) / Cmd+Shift+I (全部面板) | Extended | 保留|
+| 123 | 编码切换 | 面板字符编码设置 | Extended | 保留|
 
 ### 3.4 滚动 & 搜索
 
@@ -203,13 +203,13 @@
 | 129 | Cmd+=/- 调整字体大小 | | Core |保留 |
 | 130 | Cmd+0 重置字体大小 | | Core |保留 |
 | 131 | Ctrl+Cmd+F 全屏切换 | | Core |保留 |
-| 132 | Cmd+Shift+Up 窗口置顶 | Always on Top | Extended | |
+| 132 | Cmd+Shift+Up 窗口置顶 | Always on Top | Extended | 保留|
 | 133 | Cmd+M 最小化 | | Core |保留 |
 | 134 | DPI 感知 | 按显示器 DPI 缩放 | Core |保留 |
 | 135 | 背景图片 | 可配置终端背景图 | Extended | |
 | 136 | 窗口透明度 | window_background_opacity | Core |保留 |
 | 137 | 背景模糊 | macOS 原生 blur | Core |保留 |
-| 138 | 多层背景系统 | 渐变/图片/纯色叠加 | Extended | |
+| 138 | 多层背景系统 | 渐变/图片/纯色叠加 | Extended | 保留|
 
 ---
 
@@ -237,25 +237,25 @@
 | 147 | 主题选择 | Auto (跟随 macOS) / Kaku Dark / Kaku Light | Core |保留 |
 | 148 | 1001 内置配色方案 | scheme_data.rs 中的大量预设 | Core |保留 |
 | 149 | 自定义配色方案 | 用户 TOML 文件 | Core |保留 |
-| 150 | 字体族/大小/行高/字宽 | JetBrains Mono 默认 | Core | |
-| 151 | 字体规则 (font_rules) | 按单元格属性选字体（粗体/斜体等） | Core | |
-| 152 | 光标样式 | 闪烁条/块/下划线，闪烁速率 | Core | |
-| 153 | Scrollback 大小 | 默认 3500 行 | Core | |
-| 154 | 终端编码 | 默认 UTF-8 | Core | |
-| 155 | kitty 图形协议 | 默认开启 | Core | |
+| 150 | 字体族/大小/行高/字宽 | JetBrains Mono 默认 | Core | 保留|
+| 151 | 字体规则 (font_rules) | 按单元格属性选字体（粗体/斜体等） | Core | 保留|
+| 152 | 光标样式 | 闪烁条/块/下划线，闪烁速率 | Core |保留 |
+| 153 | Scrollback 大小 | 默认 3500 行 | Core |保留 |
+| 154 | 终端编码 | 默认 UTF-8 | Core |保留 |
+| 155 | kitty 图形协议 | 默认开启 | Core |保留 |
 | 156 | 双向文本 (bidi) | 可配置 | Extended | |
-| 157 | 超链接规则 | URL / file:line:col 自动检测 | Core | |
-| 158 | Bell 设置 | 视觉/听觉 + Dock badge | Core | |
+| 157 | 超链接规则 | URL / file:line:col 自动检测 | Core |保留 |
+| 158 | Bell 设置 | 视觉/听觉 + Dock badge | Core |保留 |
 
 ### 5.2 基础设施
 
 | # | 功能 | 描述 | 类型 | 决策 |
 |---|------|------|------|------|
-| 159 | Lua 5.4 配置文件 (kaku.lua) | 全功能脚本化配置 | Core | |
-| 160 | 字节码缓存 (KLBC) | 源码 hash 校验的预编译缓存 | Core | |
-| 161 | 热重载 | 文件变更自动重载配置 | Core | |
-| 162 | XDG 支持 | XDG_CONFIG_HOME / XDG_CONFIG_DIRS | Core | |
-| 163 | 运行时覆盖 | `--config k=v` 不改文件 | Core | |
+| 159 | Lua 5.4 配置文件 (kaku.lua) | 全功能脚本化配置 | Core | 保留|
+| 160 | 字节码缓存 (KLBC) | 源码 hash 校验的预编译缓存 | Core | 保留|
+| 161 | 热重载 | 文件变更自动重载配置 | Core | 保留|
+| 162 | XDG 支持 | XDG_CONFIG_HOME / XDG_CONFIG_DIRS | Core | 保留|
+| 163 | 运行时覆盖 | `--config k=v` 不改文件 | Core | 保留|
 
 ---
 
@@ -263,19 +263,19 @@
 
 | # | 功能 | 描述 | 类型 | 决策 |
 |---|------|------|------|------|
-| 164 | `wezterm.action` | 全部 KeyAssignment 构造器 | Core | |
-| 165 | `wezterm.font()` / `wezterm.color` | 字体和颜色 API | Core | |
-| 166 | `wezterm.mux` | 工作区/窗口/标签/面板/域管理 | Core | |
-| 167 | `wezterm.gui` | 屏幕/外观/GPU 枚举/窗口操作 | Core | |
-| 168 | `wezterm.serde` | JSON/YAML/TOML 编解码 | Core | |
-| 169 | `wezterm.time` | 时间操作 + call_after 定时器 | Core | |
-| 170 | `wezterm.plugin` | Git URL 插件加载 | Core | |
-| 171 | `wezterm.ssh_funcs` | SSH 配置枚举 | Core | |
-| 172 | `wezterm.procinfo` | 进程信息查询 | Core | |
+| 164 | `wezterm.action` | 全部 KeyAssignment 构造器 | Core |保留 |
+| 165 | `wezterm.font()` / `wezterm.color` | 字体和颜色 API | Core |保留 |
+| 166 | `wezterm.mux` | 工作区/窗口/标签/面板/域管理 | Core |保留 |
+| 167 | `wezterm.gui` | 屏幕/外观/GPU 枚举/窗口操作 | Core |保留 |
+| 168 | `wezterm.serde` | JSON/YAML/TOML 编解码 | Core |保留 |
+| 169 | `wezterm.time` | 时间操作 + call_after 定时器 | Core |保留 |
+| 170 | `wezterm.plugin` | Git URL 插件加载 | Core |保留 |
+| 171 | `wezterm.ssh_funcs` | SSH 配置枚举 | Core |保留 |
+| 172 | `wezterm.procinfo` | 进程信息查询 | Core |保留 |
 | 173 | `wezterm.battery_info` | 电池状态 | Extended | |
-| 174 | `wezterm.nerdfonts` | Nerd Font 图标查找 | Core | |
-| 175 | `wezterm.GLOBAL` | 跨配置重载的共享可变状态 | Core | |
-| 176 | 事件驱动 Lua API | gui-startup / gui-attached / 生命周期事件 | Core | |
+| 174 | `wezterm.nerdfonts` | Nerd Font 图标查找 | Core |保留 |
+| 175 | `wezterm.GLOBAL` | 跨配置重载的共享可变状态 | Core |保留 |
+| 176 | 事件驱动 Lua API | gui-startup / gui-attached / 生命周期事件 | Core |保留 |
 
 ---
 
@@ -283,22 +283,22 @@
 
 | # | 功能 | 描述 | 类型 | 决策 |
 |---|------|------|------|------|
-| 177 | zsh 集成 | 托管 init 文件 + PATH 注入 | Core | |
-| 178 | fish 集成 | 托管 conf.d + init 文件 | Core | |
-| 179 | zsh 插件捆绑 | fast-syntax-highlighting / zsh-autosuggestions / zsh-completions / zsh-z | Core | |
-| 180 | Starship 提示符 | 托管 starship.toml 配置 | Core | |
-| 181 | 智能历史记录 | HISTSIZE=50000, 去重, 空格前缀忽略 | Core | |
-| 182 | 目录导航 | auto_cd / auto_pushd / pushd_ignore_dups | Core | |
-| 183 | Git 快捷别名 | 20+ git aliases (g/ga/gc/gco/gd/gl/gp/gst...) | Core | |
-| 184 | 目录快捷跳转 | `...` 到 `......` 多级 cd | Core | |
-| 185 | OSC 7 (工作目录跟踪) | 告知终端当前 cwd | Core | |
-| 186 | OSC 133 (语义区域) | 命令边界标记 | Core | |
-| 187 | OSC 1337 (用户变量) | Shell 到终端的元数据传递 | Core | |
-| 188 | tmux 集成 | 托管 tmux.conf + OSC passthrough | Extended | |
-| 189 | CLI 工具安装 | Homebrew 安装 starship/delta/lazygit/yazi/zoxide | Extended | |
-| 190 | 外部 autosuggest 兼容 | 检测 kiro-cli / Amazon Q 并避免 widget 冲突 | Extended | |
-| 191 | Yazi 主题同步 | kaku-dark/light yazi flavor | Extended | |
-| 192 | First Run 引导 | ASCII art 欢迎 + 初始化 + 可选工具安装 | Extended | |
+| 177 | zsh 集成 | 托管 init 文件 + PATH 注入 | Core | 保留|
+| 178 | fish 集成 | 托管 conf.d + init 文件 | Core | 保留|
+| 179 | zsh 插件捆绑 | fast-syntax-highlighting / zsh-autosuggestions / zsh-completions / zsh-z | Core | 保留|
+| 180 | Starship 提示符 | 托管 starship.toml 配置 | Core | 保留|
+| 181 | 智能历史记录 | HISTSIZE=50000, 去重, 空格前缀忽略 | Core |保留 |
+| 182 | 目录导航 | auto_cd / auto_pushd / pushd_ignore_dups | Core | 保留|
+| 183 | Git 快捷别名 | 20+ git aliases (g/ga/gc/gco/gd/gl/gp/gst...) | Core | 保留|
+| 184 | 目录快捷跳转 | `...` 到 `......` 多级 cd | Core | 保留|
+| 185 | OSC 7 (工作目录跟踪) | 告知终端当前 cwd | Core | 保留|
+| 186 | OSC 133 (语义区域) | 命令边界标记 | Core | 保留|
+| 187 | OSC 1337 (用户变量) | Shell 到终端的元数据传递 | Core | 保留|
+| 188 | tmux 集成 | 托管 tmux.conf + OSC passthrough | Extended | 保留|
+| 189 | CLI 工具安装 | Homebrew 安装 starship/delta/lazygit/yazi/zoxide | Extended |保留 |
+| 190 | 外部 autosuggest 兼容 | 检测 kiro-cli / Amazon Q 并避免 widget 冲突 | Extended |保留 |
+| 191 | Yazi 主题同步 | kaku-dark/light yazi flavor | Extended | 保留|
+| 192 | First Run 引导 | ASCII art 欢迎 + 初始化 + 可选工具安装 | Extended | 保留|
 
 ---
 
@@ -306,16 +306,16 @@
 
 | # | 功能 | 描述 | 类型 | 决策 |
 |---|------|------|------|------|
-| 193 | SSH 域 | SSH 远程连接（libssh2 后端） | Core | |
-| 194 | TLS 域 | 加密 TCP 连接 | Extended | |
-| 195 | Unix 域 | 本地 socket 连接 | Extended | |
-| 196 | WSL 域 | Windows Subsystem for Linux | Extended | |
-| 197 | Exec 域 | 自定义进程域 | Extended | |
-| 198 | Serial Port 域 | 串口连接 | Extended | |
-| 199 | Kaku Remote (iOS Bridge) | WebSocket 服务器 + 屏幕共享 + 输入转发 | Extended | |
-| 200 | Kaku Relay | NAT 穿透 WebSocket 中继（独立部署） | Extended | |
+| 193 | SSH 域 | SSH 远程连接（libssh2 后端） | Core | 保留|
+| 194 | TLS 域 | 加密 TCP 连接 | Extended | 保留|
+| 195 | Unix 域 | 本地 socket 连接 | Extended | 保留|
+| 196 | WSL 域 | Windows Subsystem for Linux | Extended | 保留|
+| 197 | Exec 域 | 自定义进程域 | Extended | 保留|
+| 198 | Serial Port 域 | 串口连接 | Extended | 保留|
+| 199 | Kaku Remote (iOS Bridge) | WebSocket 服务器 + 屏幕共享 + 输入转发 | Extended | 移除|
+| 200 | Kaku Relay | NAT 穿透 WebSocket 中继（独立部署） | Extended |保留 |
 | 201 | 远程 AI 对话 | iOS 客户端通过 kaku-remote 发起 AI 对话 | AI |移除 |
-| 202 | QR 码配置 | 终端/HTML QR 码生成 | Extended | |
+| 202 | QR 码配置 | 终端/HTML QR 码生成 | Extended | 移除|
 
 ---
 
@@ -323,14 +323,14 @@
 
 | # | 功能 | 描述 | 类型 | 决策 |
 |---|------|------|------|------|
-| 203 | CLI 自更新 | `kaku update` 从 GitHub 下载 + SHA256 校验 | Extended | |
-| 204 | Homebrew 更新 | 自动检测 Homebrew 安装并用 brew upgrade | Extended | |
-| 205 | GUI 后台更新检查 | 周期性检查新版本（默认 3 小时间隔） | Extended | |
-| 206 | 暂存更新 (Staged Update) | 后台下载验证，重启即用 | Extended | |
-| 207 | macOS 通知 | 更新可用/已就绪 Toast | Extended | |
-| 208 | 多实例协调 | 仅主实例显示更新通知 | Extended | |
-| 209 | 7 天过期清理 | 超过 7 天的暂存更新自动清理 | Extended | |
-| 210 | 系统代理支持 | scutil 检测 macOS 代理设置 | Extended | |
+| 203 | CLI 自更新 | `kaku update` 从 GitHub 下载 + SHA256 校验 | Extended |移除 |
+| 204 | Homebrew 更新 | 自动检测 Homebrew 安装并用 brew upgrade | Extended | 移除|
+| 205 | GUI 后台更新检查 | 周期性检查新版本（默认 3 小时间隔） | Extended | 移除|
+| 206 | 暂存更新 (Staged Update) | 后台下载验证，重启即用 | Extended | 移除|
+| 207 | macOS 通知 | 更新可用/已就绪 Toast | Extended |保留 |
+| 208 | 多实例协调 | 仅主实例显示更新通知 | Extended | 保留|
+| 209 | 7 天过期清理 | 超过 7 天的暂存更新自动清理 | Extended | 保留|
+| 210 | 系统代理支持 | scutil 检测 macOS 代理设置 | Extended | 保留|
 
 ---
 
@@ -338,11 +338,11 @@
 
 | # | 功能 | 描述 | 类型 | 决策 |
 |---|------|------|------|------|
-| 211 | 窗口快照持久化 | 保存标签/面板树 + 工作目录 | Extended | |
-| 212 | 500ms 防抖保存 | 避免频繁写入 | Extended | |
-| 213 | 原子写入 | temp + rename 防崩溃 | Extended | |
-| 214 | 版本门控 | 快照版本不兼容时静默忽略 | Extended | |
-| 215 | Cmd+Alt+Shift+T 恢复窗口 | 恢复上次保存的完整窗口 | Extended | |
+| 211 | 窗口快照持久化 | 保存标签/面板树 + 工作目录 | Extended | 保留|
+| 212 | 500ms 防抖保存 | 避免频繁写入 | Extended |保留 |
+| 213 | 原子写入 | temp + rename 防崩溃 | Extended | 保留|
+| 214 | 版本门控 | 快照版本不兼容时静默忽略 | Extended |保留 |
+| 215 | Cmd+Alt+Shift+T 恢复窗口 | 恢复上次保存的完整窗口 | Extended | 保留|
 
 ---
 
@@ -350,20 +350,20 @@
 
 | # | 功能 | 描述 | 类型 | 决策 |
 |---|------|------|------|------|
-| 216 | 全局热键 (Ctrl+Alt+Cmd+K) | 系统级显示/隐藏 | Platform | |
-| 217 | macOS 原生菜单栏 | NSMenu/NSMenuItem 完整管理 | Platform | |
-| 218 | Dock Badge | Bell 事件 Dock 图标数字 | Platform | |
-| 219 | macOS 原生全屏 | 含可选 Notch 扩展 | Platform | |
-| 220 | 外观检测 | 系统 Dark/Light 模式 | Platform | |
-| 221 | IME 集成 | 日/中/韩输入法支持 | Platform | |
-| 222 | 系统代理检测 | scutil --proxy 解析 | Platform | |
-| 223 | 窗口位置持久化 | 0.35s 防抖保存几何信息 | Platform | |
-| 224 | 无障碍 (AXTextArea) | 屏幕阅读器 + 语音输入支持 | Platform | |
-| 225 | 剪贴板图片 | TIFF→PNG 转换 + 24h 缓存 | Platform | |
-| 226 | 设为默认终端 | macOS 系统设置 | Platform | |
-| 227 | OpenGL + MetalANGLE 后端 | CGL / EGL 自动选择 | Platform | |
-| 228 | WebGPU 渲染后端 | Metal backend GPU 加速 | Core | |
-| 229 | GPU 适配器选择 | LowPower / HighPerformance + 指定适配器 | Extended | |
+| 216 | 全局热键 (Ctrl+Alt+Cmd+K) | 系统级显示/隐藏 | Platform | 保留|
+| 217 | macOS 原生菜单栏 | NSMenu/NSMenuItem 完整管理 | Platform | 保留|
+| 218 | Dock Badge | Bell 事件 Dock 图标数字 | Platform |保留 |
+| 219 | macOS 原生全屏 | 含可选 Notch 扩展 | Platform | 保留|
+| 220 | 外观检测 | 系统 Dark/Light 模式 | Platform | 保留|
+| 221 | IME 集成 | 日/中/韩输入法支持 | Platform | 保留|
+| 222 | 系统代理检测 | scutil --proxy 解析 | Platform |保留 |
+| 223 | 窗口位置持久化 | 0.35s 防抖保存几何信息 | Platform |保留 |
+| 224 | 无障碍 (AXTextArea) | 屏幕阅读器 + 语音输入支持 | Platform | 保留|
+| 225 | 剪贴板图片 | TIFF→PNG 转换 + 24h 缓存 | Platform | 保留|
+| 226 | 设为默认终端 | macOS 系统设置 | Platform | 保留|
+| 227 | OpenGL + MetalANGLE 后端 | CGL / EGL 自动选择 | Platform | 保留|
+| 228 | WebGPU 渲染后端 | Metal backend GPU 加速 | Core | 保留|
+| 229 | GPU 适配器选择 | LowPower / HighPerformance + 指定适配器 | Extended | 保留|
 
 ---
 
@@ -371,16 +371,16 @@
 
 | # | 功能 | 描述 | 类型 | 决策 |
 |---|------|------|------|------|
-| 230 | GPU 渲染管线 | OpenGL / WebGPU 双后端 | Core | |
-| 231 | Glyph Atlas | GPU 纹理图集缓存 | Core | |
-| 232 | HarfBuzz 字形整形 | 复杂文本排版 | Core | |
-| 233 | 自定义块字形渲染 | Nerd Font / Emoji / 连字 | Core | |
-| 234 | 终端仿真器 | VT100/xterm 完整转义序列处理 | Core | |
-| 235 | Sixel 图形协议 | 图像显示支持 | Core | |
-| 236 | Kitty 图形协议 | 现代图像协议 | Core | |
-| 237 | 同步输出 (Mode 2026) | BSU 模式减少闪烁 | Core | |
-| 238 | 行重排 (Resize Rewrap) | 窗口大小改变时正确重排文本 | Core | |
-| 239 | 自定义字形 (customglyph.rs) | 6K 行手写字形渲染 | Core | |
+| 230 | GPU 渲染管线 | OpenGL / WebGPU 双后端 | Core |保留 |
+| 231 | Glyph Atlas | GPU 纹理图集缓存 | Core |保留 |
+| 232 | HarfBuzz 字形整形 | 复杂文本排版 | Core |保留 |
+| 233 | 自定义块字形渲染 | Nerd Font / Emoji / 连字 | Core |保留 |
+| 234 | 终端仿真器 | VT100/xterm 完整转义序列处理 | Core |保留 |
+| 235 | Sixel 图形协议 | 图像显示支持 | Core |保留 |
+| 236 | Kitty 图形协议 | 现代图像协议 | Core |保留 |
+| 237 | 同步输出 (Mode 2026) | BSU 模式减少闪烁 | Core |保留 |
+| 238 | 行重排 (Resize Rewrap) | 窗口大小改变时正确重排文本 | Core |保留 |
+| 239 | 自定义字形 (customglyph.rs) | 6K 行手写字形渲染 | Core |保留 |
 
 ---
 
@@ -388,16 +388,16 @@
 
 | # | 功能 | 描述 | 类型 | 决策 |
 |---|------|------|------|------|
-| 240 | SFTP 支持 | SSH 内置 SFTP 文件操作 | Extended | |
-| 241 | Wayland 支持 | Linux Wayland 窗口系统 | Extended | |
-| 242 | X11 支持 | Linux X11 窗口系统 | Extended | |
-| 243 | Windows 支持 | Win32 控制台 + MSVC | Extended | |
-| 244 | 串口终端 | Serial port 连接 | Extended | |
-| 245 | 工作区 (Workspace) | 多工作区切换 | Extended | |
-| 246 | tmux 控制模式 | tmux -CC 集成 | Extended | |
-| 247 | 领导键 (Leader Key) | 嵌套键表前缀 | Extended | |
-| 248 | 键表 (Key Tables) | 命名键绑定组 | Extended | |
-| 249 | 插件系统 | Git URL 插件 require | Extended | |
+| 240 | SFTP 支持 | SSH 内置 SFTP 文件操作 | Extended | 保留|
+| 241 | Wayland 支持 | Linux Wayland 窗口系统 | Extended | 保留|
+| 242 | X11 支持 | Linux X11 窗口系统 | Extended | 保留|
+| 243 | Windows 支持 | Win32 控制台 + MSVC | Extended | 移除|
+| 244 | 串口终端 | Serial port 连接 | Extended | 保留|
+| 245 | 工作区 (Workspace) | 多工作区切换 | Extended |保留 |
+| 246 | tmux 控制模式 | tmux -CC 集成 | Extended | 保留|
+| 247 | 领导键 (Leader Key) | 嵌套键表前缀 | Extended |保留 |
+| 248 | 键表 (Key Tables) | 命名键绑定组 | Extended | 保留|
+| 249 | 插件系统 | Git URL 插件 require | Extended | 保留|
 
 ---
 
