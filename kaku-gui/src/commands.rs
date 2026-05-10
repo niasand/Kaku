@@ -1524,16 +1524,7 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
             icon: None,
         },
         EmitEvent(name) => {
-            if name == "kaku-ai-apply-last-fix" {
-                CommandDef {
-                    brief: "Apply Last AI Fix".into(),
-                    doc: "Apply the latest Kaku Assistant suggestion for the active pane".into(),
-                    keys: vec![(Modifiers::SUPER.union(Modifiers::SHIFT), "e".into())],
-                    args: &[ArgType::ActiveWindow],
-                    menubar: &["Shell"],
-                    icon: None,
-                }
-            } else if name == "kaku-launch-lazygit" {
+            if name == "kaku-launch-lazygit" {
                 CommandDef {
                     brief: "Lazygit".into(),
                     doc: "Open lazygit".into(),
