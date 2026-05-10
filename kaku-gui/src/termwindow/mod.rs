@@ -68,7 +68,7 @@ use termwiz::surface::SequenceNo;
 use wezterm_dynamic::Value;
 use wezterm_font::units::PixelLength;
 use wezterm_font::FontConfiguration;
-use wezterm_term::color::{ColorPalette, SrgbaTuple};
+use wezterm_term::color::ColorPalette;
 use wezterm_term::input::LastMouseClick;
 use wezterm_term::{Alert, Progress, StableRowIndex, TerminalConfiguration, TerminalSize};
 use wezterm_toast_notification::ToastNotification;

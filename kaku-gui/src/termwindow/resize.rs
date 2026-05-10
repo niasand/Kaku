@@ -458,7 +458,7 @@ impl super::TermWindow {
                 pixel_cell: self.render_metrics.cell_size.height as f32,
             };
             let padding_left = config.window_padding.left.evaluate_as_pixels(h_context) as usize;
-            let (mut padding_top, mut padding_bottom) = effective_vertical_padding_with_policy(
+            let (mut padding_top, padding_bottom) = effective_vertical_padding_with_policy(
                 config,
                 v_context,
                 self.show_tab_bar,
