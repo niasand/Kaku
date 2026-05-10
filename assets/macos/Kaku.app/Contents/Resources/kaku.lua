@@ -2848,24 +2848,26 @@ local function tab_path_parts(tab)
 end
 
 -- ===== Kaku Palette =====
--- Highlight hues are Aura's "Soft" variant (lower saturation than the
--- vivid Aura defaults) to reduce eye strain on a #15141b background.
+-- Highlight hues sit between Aura's vivid defaults and Aura "Soft":
+-- a third of the way back toward vivid, so colors stay punchy but not
+-- fluorescent on a #15141b background. Foreground white is dimmed by
+-- ~10% from Aura's #edecee for lower glare without losing legibility.
 local KAKU = {
   BLACK = '#15141b',
   ANSI_BLACK = '#110f18',
-  WHITE = '#edecee',
+  WHITE = '#d5d4d6',
   GRAY = '#6d6d6d',
-  PURPLE = '#8464c6',
+  PURPLE = '#8e6ad9',
   -- Use rgba() here because config::RgbaColor does not accept #RRGGBBAA.
   PURPLE_FADING = 'rgba(61,55,94,0.5)',
   SURFACE = '#1f1d28',
   SURFACE_ACTIVE = '#29263c',
-  GREEN = '#54c59f',
-  ORANGE = '#c7a06f',
-  PINK = '#c17ac8',
-  BLUE = '#6cb2c7',
-  BRIGHT_BLUE = '#92cdda',
-  RED = '#c55858',
+  GREEN = '#58d8ad',
+  ORANGE = '#daae76',
+  PINK = '#d383da',
+  BLUE = '#68afda',
+  BRIGHT_BLUE = '#90c9e6',
+  RED = '#d85d5d',
 }
 
 -- Track bell events per pane for tab notification indicator.

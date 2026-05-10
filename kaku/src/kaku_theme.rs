@@ -144,11 +144,11 @@ fn palette_matches_builtin(
 
 fn dark_palette() -> ThemePalette {
     ThemePalette {
-        primary: rgb("#8464C6"),
-        secondary: rgb("#54C59F"),
-        accent: rgb("#C7A06F"),
-        error: rgb("#C55858"),
-        text: rgb("#EDECEE"),
+        primary: rgb("#8E6AD9"),
+        secondary: rgb("#58D8AD"),
+        accent: rgb("#DAAE76"),
+        error: rgb("#D85D5D"),
+        text: rgb("#D5D4D6"),
         muted: rgb("#6D6D6D"),
         bg: rgb("#15141B"),
         is_light: false,
@@ -187,7 +187,7 @@ fn appearance_sensitive_theme(palette: ThemePalette, is_dark: bool) -> CachedThe
 fn builtin_kaku_theme(config: &ConfigHandle) -> Option<CachedTheme> {
     let dark = dark_palette();
     let light = light_palette();
-    let dark_terminal_text = rgb("#EDECEE");
+    let dark_terminal_text = rgb("#D5D4D6");
     let light_terminal_text = rgb("#100F0F");
     let light_cursor = rgb("#343331");
 
@@ -529,8 +529,8 @@ config.color_scheme = some_runtime_value
     #[test]
     fn pick_visible_keeps_accessible_candidate() {
         let bg = rgb("#15141B");
-        let text = rgb("#EDECEE");
-        let candidate = rgb("#8464C6");
+        let text = rgb("#D5D4D6");
+        let candidate = rgb("#8E6AD9");
 
         assert_eq!(pick_visible(bg, text, &[candidate]), candidate);
     }
@@ -538,7 +538,7 @@ config.color_scheme = some_runtime_value
     #[test]
     fn pick_visible_pushes_dark_theme_fallback_toward_readable_text() {
         let bg = rgb("#15141B");
-        let text = rgb("#EDECEE");
+        let text = rgb("#D5D4D6");
         let fallback = rgb("#23212E");
 
         assert!(!has_enough_separation(bg, fallback));
