@@ -396,6 +396,7 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
 
     #[derive(Clone, Copy)]
     enum MenuChoice {
+        Chat,
         Ai,
         Config,
         Init,
@@ -404,7 +405,8 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
         Reset,
     }
 
-    const MENU_ITEMS: [(&str, &str, MenuChoice); 6] = [
+    const MENU_ITEMS: [(&str, &str, MenuChoice); 7] = [
+        ("chat", "Start AI chat in this terminal", MenuChoice::Chat),
         ("ai", "Manage AI tools and Kaku Assistant", MenuChoice::Ai),
         (
             "config",
@@ -470,7 +472,7 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
         }
         out.push_str("\r\n");
         out.push_str(&format!(
-            "  {gray}↑↓  |  Enter  |  1-6  |  Q Quit  |  Esc Exit{reset}\r\n"
+            "  {gray}↑↓  |  Enter  |  1-7  |  Q Quit  |  Esc Exit{reset}\r\n"
         ));
 
         stdout
@@ -481,6 +483,7 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
 
     fn to_subcommand(choice: MenuChoice) -> SubCommand {
         match choice {
+            MenuChoice::Chat => SubCommand::Chat(chat::ChatCommand::default()),
             MenuChoice::Ai => SubCommand::Ai(ai_config::AiConfigCommand::default()),
             MenuChoice::Config => SubCommand::Config(config_cmd::ConfigCommand::default()),
             MenuChoice::Init => SubCommand::Init(init::InitCommand::default()),
@@ -526,8 +529,7 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
                 KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     return Ok(None);
                 }
-                // Number keys: '1' through '6' map directly to menu items by index.
-                KeyCode::Char(c @ '1'..='6') if can_use_menu_char_shortcut(key.modifiers) => {
+                KeyCode::Char(c @ '1'..='7') if can_use_menu_char_shortcut(key.modifiers) => {
                     let idx = (c as usize) - ('1' as usize);
                     return Ok(Some(to_subcommand(MENU_ITEMS[idx].2)));
                 }
