@@ -88,14 +88,6 @@ use wezterm_gui_subcommands::{name_equals_value, StartCommand};
 use wezterm_mux_server_impl::update_mux_domains;
 use wezterm_toast_notification::*;
 
-mod ai_auth;
-mod ai_chat_engine;
-mod ai_client;
-mod ai_conversations;
-#[cfg(feature = "remote")]
-mod ai_remote;
-mod ai_state;
-mod ai_tools;
 mod colorease;
 mod commands;
 mod customglyph;
@@ -112,7 +104,6 @@ mod scrollbar;
 mod selection;
 mod session_restore;
 mod shapecache;
-mod soul;
 mod spawn;
 mod startup_trace;
 mod stats;
@@ -121,7 +112,6 @@ mod termwindow;
 mod thread_util;
 mod unicode_names;
 mod uniforms;
-mod update;
 mod utilsprites;
 
 #[cfg(feature = "dhat-heap")]
@@ -370,12 +360,6 @@ async fn async_run_terminal_gui(
         log::warn!("{:#}", err);
     }
     startup_trace::mark("  spawn_mux_server done");
-
-    #[cfg(feature = "remote")]
-    {
-        ai_remote::register_if_configured();
-        kaku_remote::start();
-    }
 
     let default_domain_is_local = Mux::get().default_domain().domain_name() == "local";
     if default_domain_is_local {

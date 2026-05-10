@@ -160,112 +160,6 @@ pub fn open_kaku_config() {
     .detach();
 }
 
-pub fn run_kaku_update_from_menu() {
-    static UPDATE_RUNNING: AtomicBool = AtomicBool::new(false);
-    if UPDATE_RUNNING
-        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-        .is_err()
-    {
-        log::info!("run_kaku_update_from_menu: update already running, ignoring");
-        return;
-    }
-    run_kaku_subcommand_in_new_tab("update", Some(&UPDATE_RUNNING));
-}
-
-/// Apply a previously staged update by spawning the helper script directly,
-/// without opening a terminal tab.
-pub fn restart_to_update() {
-    use crate::update::{
-        cleanup_staged_update, resolve_target_app_path, spawn_update_helper,
-        staged_update_available, write_update_helper_script,
-    };
-
-    // Toast click can fire twice (rapid double-click, or two GUI processes
-    // both registering the click callback). Without this guard, two helper
-    // scripts race to ditto into the same Kaku.app.
-    static UPDATE_RUNNING: AtomicBool = AtomicBool::new(false);
-    if UPDATE_RUNNING
-        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-        .is_err()
-    {
-        log::info!("restart_to_update: already running, ignoring");
-        return;
-    }
-
-    // Reset the guard on any non-success exit so the user can retry. On
-    // success the helper kills us before the function returns, so the guard
-    // value no longer matters.
-    let release_guard = || UPDATE_RUNNING.store(false, Ordering::SeqCst);
-
-    fn fallback_with_toast(msg: &str) {
-        log::error!("restart_to_update: {}", msg);
-        wezterm_toast_notification::persistent_toast_notification(
-            "Update Failed",
-            "Automatic update failed. Trying manual update.",
-        );
-        run_kaku_update_from_menu();
-    }
-
-    let info = match staged_update_available() {
-        Some(info) => info,
-        None => {
-            log::warn!("restart_to_update: no staged update available, falling back to menu flow");
-            run_kaku_update_from_menu();
-            release_guard();
-            return;
-        }
-    };
-
-    let target_app = match resolve_target_app_path() {
-        Ok(p) => p,
-        Err(e) => {
-            fallback_with_toast(&format!("failed to resolve target app: {}", e));
-            release_guard();
-            return;
-        }
-    };
-
-    let new_app = std::path::PathBuf::from(&info.app_path);
-    // The work_dir for the helper script is the staged_update directory itself.
-    let work_dir = config::DATA_DIR.join("staged_update");
-
-    let update_root = config::DATA_DIR.join("updates");
-    if let Err(e) = config::create_user_owned_dirs(&update_root) {
-        fallback_with_toast(&format!("failed to create updates dir: {}", e));
-        release_guard();
-        return;
-    }
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let helper_script = update_root.join(format!("apply-staged-{}.sh", now));
-
-    if let Err(e) = write_update_helper_script(&helper_script) {
-        fallback_with_toast(&format!("failed to write helper script: {}", e));
-        release_guard();
-        return;
-    }
-
-    if let Err(e) = spawn_update_helper(&helper_script, &target_app, &new_app, &work_dir) {
-        log::error!("restart_to_update: failed to spawn helper: {}", e);
-        cleanup_staged_update();
-        wezterm_toast_notification::persistent_toast_notification(
-            "Update Failed",
-            "Automatic update failed. Trying manual update.",
-        );
-        run_kaku_update_from_menu();
-        release_guard();
-        return;
-    }
-
-    log::info!(
-        "restart_to_update: helper spawned for {} -> {}",
-        info.tag,
-        target_app.display()
-    );
-}
-
 pub fn run_kaku_doctor_in_new_tab() {
     run_kaku_subcommand_in_new_tab("doctor", None);
 }
@@ -870,11 +764,6 @@ impl GuiFrontEnd {
                 }
 
                 match action {
-                    KeyAssignment::EmitEvent(event)
-                        if event == "update-kaku" || event == "run-kaku-update" =>
-                    {
-                        run_kaku_update_from_menu();
-                    }
                     KeyAssignment::EmitEvent(event) if event == "run-kaku-cli" => {
                         let kaku_cli = kaku_cli_program_for_spawn();
                         spawn_command(

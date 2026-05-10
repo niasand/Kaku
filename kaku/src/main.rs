@@ -25,9 +25,6 @@ use std::path::PathBuf;
 use umask::UmaskSaver;
 use wezterm_gui_subcommands::*;
 
-mod ai_config;
-mod assistant_config;
-mod chat;
 mod cli;
 mod config_cmd;
 mod config_tui;
@@ -38,7 +35,6 @@ mod reset;
 mod shell;
 mod tui_core;
 mod tui_splash;
-mod update;
 mod utils;
 
 #[derive(Debug, Parser)]
@@ -122,15 +118,6 @@ enum SubCommand {
     #[command(short_flag_alias = 'e', hide = true)]
     BlockingStart(StartCommand),
 
-    #[command(name = "ai", about = "Manage AI settings")]
-    Ai(ai_config::AiConfigCommand),
-
-    #[command(
-        name = "chat",
-        about = "Start the AI chat in this terminal (alias for `k`)"
-    )]
-    Chat(chat::ChatCommand),
-
     #[command(name = "config", about = "Configure Kaku settings")]
     Config(config_cmd::ConfigCommand),
 
@@ -142,12 +129,6 @@ enum SubCommand {
         about = "Check Kaku shell integration, environment, and runtime health"
     )]
     Doctor(doctor::DoctorCommand),
-
-    #[command(
-        name = "update",
-        about = "Download and install the latest Kaku release automatically"
-    )]
-    Update(update::UpdateCommand),
 
     #[command(
         name = "reset",
@@ -169,10 +150,6 @@ enum SubCommand {
         hide = true
     )]
     SetCwd(SetCwdCommand),
-
-    #[cfg(feature = "remote")]
-    #[command(name = "remote", about = "Show QR code to connect Kaku iOS app")]
-    Remote,
 
     /// Generate shell completion information
     #[command(name = "shell-completion", hide = true)]
@@ -337,18 +314,6 @@ fn run() -> anyhow::Result<()> {
             env_bootstrap::bootstrap();
             cli::run_cli(&opts, cli)
         }
-        #[cfg(feature = "remote")]
-        SubCommand::Remote => {
-            let state = kaku_remote::read_state()?;
-            let output = if let Some(relay) = &state.tunnel_relay {
-                kaku_remote::render_relay_qr_terminal(relay, &state.token)
-            } else {
-                let host = lan_ip().unwrap_or_else(|| "127.0.0.1".to_string());
-                kaku_remote::render_qr_terminal(&host, state.port, &state.token)
-            };
-            println!("{output}");
-            Ok(())
-        }
         SubCommand::SetCwd(cmd) => cmd.run(),
         SubCommand::ShellCompletion { shell } => {
             use clap::CommandFactory;
@@ -357,7 +322,6 @@ fn run() -> anyhow::Result<()> {
             generate_completion(shell, &mut cmd, name, &mut std::io::stdout());
             Ok(())
         }
-        SubCommand::Update(cmd) => cmd.run(),
         SubCommand::Config(cmd) => cmd.run(
             opts.config_file.as_ref().map(PathBuf::from),
             opts.config_file.clone(),
@@ -367,12 +331,6 @@ fn run() -> anyhow::Result<()> {
         SubCommand::Init(cmd) => cmd.run(),
         SubCommand::Doctor(cmd) => cmd.run(),
         SubCommand::Reset(cmd) => cmd.run(),
-        SubCommand::Ai(cmd) => cmd.run(
-            opts.config_file.clone(),
-            opts.config_override.clone(),
-            opts.skip_config,
-        ),
-        SubCommand::Chat(cmd) => cmd.run(),
     }
 }
 
@@ -396,18 +354,13 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
 
     #[derive(Clone, Copy)]
     enum MenuChoice {
-        Chat,
-        Ai,
         Config,
         Init,
         Doctor,
-        Update,
         Reset,
     }
 
-    const MENU_ITEMS: [(&str, &str, MenuChoice); 7] = [
-        ("chat", "Start AI chat in this terminal", MenuChoice::Chat),
-        ("ai", "Manage AI tools and Kaku Assistant", MenuChoice::Ai),
+    const MENU_ITEMS: [(&str, &str, MenuChoice); 4] = [
         (
             "config",
             "Manage terminal and assistant settings",
@@ -418,11 +371,6 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
             "doctor",
             "Run diagnostics for shell and runtime health",
             MenuChoice::Doctor,
-        ),
-        (
-            "update",
-            "Check and install latest version",
-            MenuChoice::Update,
         ),
         (
             "reset",
@@ -472,7 +420,7 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
         }
         out.push_str("\r\n");
         out.push_str(&format!(
-            "  {gray}↑↓  |  Enter  |  1-7  |  Q Quit  |  Esc Exit{reset}\r\n"
+            "  {gray}↑↓  |  Enter  |  1-4  |  Q Quit  |  Esc Exit{reset}\r\n"
         ));
 
         stdout
@@ -483,12 +431,9 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
 
     fn to_subcommand(choice: MenuChoice) -> SubCommand {
         match choice {
-            MenuChoice::Chat => SubCommand::Chat(chat::ChatCommand::default()),
-            MenuChoice::Ai => SubCommand::Ai(ai_config::AiConfigCommand::default()),
             MenuChoice::Config => SubCommand::Config(config_cmd::ConfigCommand::default()),
             MenuChoice::Init => SubCommand::Init(init::InitCommand::default()),
             MenuChoice::Doctor => SubCommand::Doctor(doctor::DoctorCommand::default()),
-            MenuChoice::Update => SubCommand::Update(update::UpdateCommand::default()),
             MenuChoice::Reset => SubCommand::Reset(reset::ResetCommand::default()),
         }
     }
@@ -529,7 +474,7 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
                 KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     return Ok(None);
                 }
-                KeyCode::Char(c @ '1'..='7') if can_use_menu_char_shortcut(key.modifiers) => {
+                KeyCode::Char(c @ '1'..='4') if can_use_menu_char_shortcut(key.modifiers) => {
                     let idx = (c as usize) - ('1' as usize);
                     return Ok(Some(to_subcommand(MENU_ITEMS[idx].2)));
                 }
@@ -641,12 +586,4 @@ fn resolve_gui_executable(exe_name: &str) -> anyhow::Result<PathBuf> {
         .into_iter()
         .next()
         .ok_or_else(|| anyhow!("unable to resolve GUI executable path"))
-}
-
-#[cfg(feature = "remote")]
-fn lan_ip() -> Option<String> {
-    use std::net::UdpSocket;
-    let sock = UdpSocket::bind("0.0.0.0:0").ok()?;
-    sock.connect("8.8.8.8:80").ok()?;
-    Some(sock.local_addr().ok()?.ip().to_string())
 }

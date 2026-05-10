@@ -1,6 +1,5 @@
 mod ui;
 
-use crate::assistant_config;
 use crate::utils::open_path_in_editor;
 use anyhow::Context;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
@@ -470,18 +469,6 @@ impl App {
     }
 
     fn load_config(&mut self) {
-        if let Some(field) = self
-            .fields
-            .iter_mut()
-            .find(|field| field.lua_key == "__assistant_enabled__")
-        {
-            field.value = match assistant_config::read_enabled() {
-                Ok(true) => "On".into(),
-                Ok(false) => "Off".into(),
-                Err(_) => field.default.clone(),
-            };
-        }
-
         let config_path = self.config_path();
         if !config_path.exists() {
             return;
@@ -1166,20 +1153,6 @@ impl App {
             }
         }
         std::fs::rename(&temp_path, &real_path)?;
-
-        if let Some(enabled) = assistant_enabled {
-            if let Err(err) = assistant_config::write_enabled(enabled) {
-                if let Err(rollback_err) =
-                    crate::utils::write_atomic(&real_path, original_content.as_bytes())
-                {
-                    return Err(err.context(format!(
-                        "assistant setting save failed and Lua rollback also failed: {}",
-                        rollback_err
-                    )));
-                }
-                return Err(err);
-            }
-        }
 
         Ok(())
     }

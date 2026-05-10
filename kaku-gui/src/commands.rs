@@ -369,10 +369,8 @@ impl CommandDef {
             ) || matches!(
                 action,
                 EmitEvent(name)
-                    if name == "kaku-ai-chat"
-                        || name == "kaku-launch-lazygit"
+                    if name == "kaku-launch-lazygit"
                         || name == "kaku-launch-yazi"
-                        || name == "run-kaku-ai-config"
             )
         }
 
@@ -728,11 +726,8 @@ impl CommandDef {
                 "Shell" => match action {
                     SpawnWindow => 10,
                     SpawnTab(_) | SpawnCommandInNewTab(_) => 20,
-                    EmitEvent(name) if name == "kaku-ai-chat" => 20,
-                    EmitEvent(name) if name == "run-kaku-ai-config" => 21,
                     EmitEvent(name) if name == "kaku-launch-lazygit" => 22,
                     EmitEvent(name) if name == "kaku-launch-yazi" => 23,
-                    EmitEvent(name) if name == "kaku-open-remote-files" => 24,
                     SplitVertical(_) | SplitHorizontal(_) | SplitPane(_) => 30,
                     CloseCurrentTab { .. } | CloseCurrentPane { .. } => 40,
                     RestorePreviousWindow => 42,
@@ -805,7 +800,7 @@ impl CommandDef {
             match title {
                 "Shell" => match rank {
                     0..=20 => 1,  // New Window, New Tab
-                    21..=26 => 2, // AI Config, Lazygit, Yazi, Remote Files, Command Palette
+                    21..=26 => 2, // Lazygit, Yazi, Command Palette
                     27..=35 => 3, // Split
                     36..=45 => 4, // Close
                     46..=55 => 5, // Launcher
@@ -890,30 +885,6 @@ impl CommandDef {
                             settings_item.set_target(app_delegate);
                         }
                         menu.add_item(&settings_item);
-
-                        let check_update = MenuItem::new_with(
-                            "Check for Updates...",
-                            Some(kaku_perform_key_assignment_sel),
-                            "",
-                        );
-                        check_update.set_represented_item(RepresentedItem::KeyAssignment(
-                            KeyAssignment::EmitEvent("run-kaku-update".to_string()),
-                        ));
-                        menu.add_item(&check_update);
-
-                        // Show "Restart to Update" when a staged update is ready.
-                        if let Some(info) = crate::update::staged_update_available() {
-                            let version = info.tag.trim_start_matches(['v', 'V']);
-                            let restart_item = MenuItem::new_with(
-                                &format!("Restart to Update ({})", version),
-                                Some(kaku_perform_key_assignment_sel),
-                                "",
-                            );
-                            restart_item.set_represented_item(RepresentedItem::KeyAssignment(
-                                KeyAssignment::EmitEvent("restart-to-update".to_string()),
-                            ));
-                            menu.add_item(&restart_item);
-                        }
 
                         let set_default_terminal_item = MenuItem::new_with(
                             "Set as Default Terminal",
@@ -1553,25 +1524,7 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
             icon: None,
         },
         EmitEvent(name) => {
-            if name == "kaku-ai-chat" {
-                CommandDef {
-                    brief: "AI Chat".into(),
-                    doc: "Open AI conversation in current terminal pane".into(),
-                    keys: vec![(Modifiers::SUPER, "l".into())],
-                    args: &[ArgType::ActivePane],
-                    menubar: &["Shell"],
-                    icon: None,
-                }
-            } else if name == "run-kaku-ai-config" {
-                CommandDef {
-                    brief: "AI Config".into(),
-                    doc: "Open AI configuration".into(),
-                    keys: vec![(Modifiers::SUPER.union(Modifiers::SHIFT), "a".into())],
-                    args: &[ArgType::ActiveWindow],
-                    menubar: &["Shell"],
-                    icon: None,
-                }
-            } else if name == "kaku-ai-apply-last-fix" {
+            if name == "kaku-ai-apply-last-fix" {
                 CommandDef {
                     brief: "Apply Last AI Fix".into(),
                     doc: "Apply the latest Kaku Assistant suggestion for the active pane".into(),
@@ -1594,15 +1547,6 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
                     brief: "Yazi File Manager".into(),
                     doc: "Open Yazi file manager".into(),
                     keys: vec![(Modifiers::SUPER.union(Modifiers::SHIFT), "y".into())],
-                    args: &[ArgType::ActiveWindow],
-                    menubar: &["Shell"],
-                    icon: None,
-                }
-            } else if name == "kaku-open-remote-files" {
-                CommandDef {
-                    brief: "Remote Files".into(),
-                    doc: "Open the current SSH domain in a local Yazi tab".into(),
-                    keys: vec![(Modifiers::SUPER.union(Modifiers::SHIFT), "r".into())],
                     args: &[ArgType::ActiveWindow],
                     menubar: &["Shell"],
                     icon: None,
@@ -2596,11 +2540,8 @@ fn compute_default_actions() -> Vec<KeyAssignment> {
         // ----------------- Shell
         SpawnTab(SpawnTabDomain::CurrentPaneDomain),
         SpawnWindow,
-        EmitEvent("kaku-ai-chat".to_string()),
-        EmitEvent("run-kaku-ai-config".to_string()),
         EmitEvent("kaku-launch-lazygit".to_string()),
         EmitEvent("kaku-launch-yazi".to_string()),
-        EmitEvent("kaku-open-remote-files".to_string()),
         SplitVertical(SpawnCommand {
             domain: SpawnTabDomain::CurrentPaneDomain,
             ..Default::default()

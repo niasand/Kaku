@@ -1076,8 +1076,6 @@ pub struct TermWindow {
     selection_copy_disabled_hint_shown: bool,
     last_window_title: String,
 
-    /// Panes that currently have an ai_chat overlay open; used to implement Cmd+L toggle.
-    ai_chat_overlay_panes: std::collections::HashSet<PaneId>,
 }
 
 impl TermWindow {
@@ -1326,20 +1324,6 @@ impl TermWindow {
     pub(crate) fn layout_is_effective_fullscreen(&self) -> bool {
         self.effective_layout_window_state()
             .contains(WindowState::FULL_SCREEN)
-    }
-
-    /// Returns true when the currently focused pane has the AI chat overlay
-    /// active. Used by the resize path to temporarily shrink the bottom
-    /// padding so the chat box sits closer to the window / tab-bar edge.
-    fn has_ai_chat_overlay_on_active_pane(&self) -> bool {
-        let mux = mux::Mux::try_get();
-        let pane_id = mux
-            .and_then(|m| m.get_active_tab_for_window(self.mux_window_id))
-            .and_then(|tab| tab.get_active_pane().map(|p| p.pane_id()));
-        match pane_id {
-            Some(id) => self.ai_chat_overlay_panes.contains(&id),
-            None => false,
-        }
     }
 
     /// Fullscreen should keep the historical V0.7.1 padding behavior.
@@ -1679,7 +1663,6 @@ impl TermWindow {
             toast: None,
             selection_copy_disabled_hint_shown: false,
             last_window_title: String::new(),
-            ai_chat_overlay_panes: std::collections::HashSet::new(),
             live_resizing: false,
             pending_screen_change_resize: false,
             pending_pty_flush_after_resize: false,
@@ -1814,7 +1797,6 @@ impl TermWindow {
             crate::startup_trace::mark("  emit_status_event done");
         }
 
-        crate::update::start_update_checker();
         front_end().record_known_window(window, mux_window_id);
         crate::startup_trace::mark("TermWindow::new_window EXIT");
 
@@ -3257,22 +3239,6 @@ impl TermWindow {
             return;
         }
 
-        // `k` CLI running inside a Kaku pane signals us to open the AI chat overlay.
-        if name == "kaku_open_ai_chat" {
-            if let Some(win) = self.window.clone() {
-                win.notify(TermWindowNotif::Apply(Box::new(move |term_window| {
-                    let mux = Mux::get();
-                    if let Some(pane) = mux.get_pane(pane_id) {
-                        let _ = term_window.perform_key_assignment(
-                            &pane,
-                            &KeyAssignment::EmitEvent("kaku-ai-chat".to_string()),
-                        );
-                    }
-                })));
-            }
-            return;
-        }
-
         let mux = Mux::get();
         let window = GuiWin::new(self);
         let pane = match mux.get_pane(pane_id) {
@@ -4330,124 +4296,8 @@ impl TermWindow {
                 self.do_open_link_at_mouse_cursor(pane);
             }
             EmitEvent(name) => {
-                if name == "kaku-ai-chat" {
-                    let pane_id_check = pane.pane_id();
-                    if self.ai_chat_overlay_panes.contains(&pane_id_check) {
-                        self.cancel_overlay_for_pane(pane_id_check);
-                        return Ok(PerformAssignmentResult::Handled);
-                    }
-                    let dims = pane.get_dimensions();
-                    // Collect only the last 20 visible rows for the implicit prompt context.
-                    let bottom = dims.physical_top + dims.viewport_rows as StableRowIndex;
-                    let visible_top = bottom.saturating_sub(20);
-                    let (_, lines) = pane.get_lines(visible_top..bottom);
-                    let visible_lines: Vec<String> =
-                        lines.iter().map(|l| l.as_str().to_string()).collect();
-                    // Freeze a larger pane snapshot for explicit `@tab` attachment use.
-                    let tab_top = bottom.saturating_sub(120);
-                    let (_, tab_lines) = pane.get_lines(tab_top..bottom);
-                    let mut tab_snapshot = String::new();
-                    for line in tab_lines {
-                        let text = line.as_str();
-                        let next_len = tab_snapshot.len() + text.len() + 1;
-                        if next_len > 12 * 1024 {
-                            break;
-                        }
-                        if !tab_snapshot.is_empty() {
-                            tab_snapshot.push('\n');
-                        }
-                        tab_snapshot.push_str(&text);
-                    }
-                    let cwd = pane
-                        .get_current_working_dir(CachePolicy::AllowStale)
-                        .map(|u| u.path().to_string())
-                        .unwrap_or_default();
-                    let selected_text = self.selection_text(pane);
-
-                    // Extract last command status and output if available
-                    let last_exit_code = pane.get_last_command_status();
-
-                    let last_command_output = if let (Some(code), Some(output_start)) =
-                        (last_exit_code, pane.get_last_command_output_start())
-                    {
-                        if code != 0 {
-                            // Only extract output when command failed
-                            let output_end = bottom.min(output_start + 51);
-                            if output_end > output_start {
-                                let (_, output_lines) = pane.get_lines(output_start..output_end);
-                                Some(
-                                    output_lines
-                                        .iter()
-                                        .map(|l| l.as_str().to_string())
-                                        .collect(),
-                                )
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
-
-                    let pal = self.palette().clone();
-                    // Helper: wrap a resolved SrgbaTuple as a ChatPalette color field.
-                    fn srgb(t: SrgbaTuple) -> SrgbaTuple {
-                        t
-                    }
-                    // colors.0 layout: 0-7 = ANSI, 8-15 = bright ANSI.
-                    // bright cyan (14) for accent, bright black (8) for border,
-                    // bright yellow (11) for user header.
-                    let chat_colors = crate::overlay::ai_chat::ChatPalette {
-                        bg: srgb(pal.background),
-                        fg: srgb(pal.foreground),
-                        accent: srgb(pal.colors.0[14]),
-                        border: srgb(pal.colors.0[8]),
-                        user_header: srgb(pal.colors.0[11]),
-                        user_text: srgb(pal.foreground),
-                        ai_text: srgb(pal.foreground),
-                        selection_fg: srgb(pal.selection_fg),
-                        selection_bg: srgb(pal.selection_bg),
-                    };
-                    let context = crate::overlay::ai_chat::TerminalContext {
-                        cwd,
-                        visible_lines,
-                        tab_snapshot,
-                        selected_text,
-                        colors: chat_colors,
-                        panel_cols: dims.cols,
-                        panel_rows: dims.viewport_rows,
-                        last_exit_code,
-                        last_command_output,
-                    };
-                    let pane_id = pane.pane_id();
-                    let (overlay, future) =
-                        start_overlay_pane(self, &pane, move |pane_id, term| {
-                            crate::overlay::ai_chat::ai_chat_overlay(pane_id, term, context)
-                        });
-                    self.assign_overlay_for_pane(pane_id, overlay);
-                    self.ai_chat_overlay_panes.insert(pane_id);
-                    // Shrink bottom padding for the chat overlay. Re-run layout
-                    // so the overlay pane gets the extra row(s) immediately.
-                    if let Some(window) = self.window.clone() {
-                        let dims = self.dimensions.clone();
-                        self.apply_dimensions(&dims, None, &window, false);
-                    }
-                    promise::spawn::spawn(async move {
-                        if let Err(e) = future.await {
-                            log::error!("AI chat overlay error for pane {pane_id}: {e:#}");
-                        }
-                    })
-                    .detach();
-                } else if name == "update-kaku" || name == "run-kaku-update" {
-                    crate::frontend::run_kaku_update_from_menu();
-                } else if name == "restart-to-update" {
-                    crate::frontend::restart_to_update();
-                } else if name == "run-kaku-cli" {
+                if name == "run-kaku-cli" {
                     pane.writer().write_all(b"kaku\n")?;
-                } else if name == "run-kaku-ai-config" {
-                    pane.writer().write_all(b"kaku ai\n")?;
                 } else if let Some(msg) = lookup_kaku_toast(name) {
                     self.show_toast(msg.to_string());
                 } else if name == "kaku-toast-ai-analyzing" {
@@ -5948,18 +5798,8 @@ impl TermWindow {
                 Mux::get().remove_pane(overlay.pane.pane_id());
             }
         }
-        let was_chat = self.ai_chat_overlay_panes.remove(&pane_id);
         if let Some(window) = self.window.as_ref() {
             window.invalidate();
-        }
-        // The AI chat overlay uses a tighter bottom padding. When it closes,
-        // re-run layout so the normal padding is restored immediately instead
-        // of waiting for the next external resize event.
-        if was_chat {
-            if let Some(window) = self.window.clone() {
-                let dims = self.dimensions.clone();
-                self.apply_dimensions(&dims, None, &window, false);
-            }
         }
     }
 

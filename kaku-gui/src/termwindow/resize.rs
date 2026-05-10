@@ -469,15 +469,6 @@ impl super::TermWindow {
             );
             let padding_right = effective_right_padding(&config, h_context);
 
-            // When the AI chat overlay is active on the focused pane, shrink
-            // the bottom padding so the chat box sits closer to the window /
-            // tab-bar edge. This only affects layout while the overlay is open;
-            // closing it triggers a resize that restores the normal padding.
-            if self.has_ai_chat_overlay_on_active_pane() {
-                let chat_bottom = if self.show_tab_bar { 0 } else { 4 };
-                padding_bottom = padding_bottom.min(chat_bottom);
-            }
-
             let avail_width = dimensions.pixel_width.saturating_sub(
                 (padding_left + padding_right) as usize
                     + (border.left + border.right).get() as usize,

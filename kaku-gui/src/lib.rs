@@ -10,12 +10,4 @@
 #![allow(clippy::needless_return)]
 #![allow(clippy::redundant_closure)]
 
-pub mod ai_chat_engine;
-pub mod ai_client;
-pub mod ai_conversations;
-pub mod ai_tools;
-pub mod cli_chat;
-pub mod soul;
-
-mod ai_auth;
 pub mod thread_util;
