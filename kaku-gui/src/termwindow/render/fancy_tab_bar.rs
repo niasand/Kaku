@@ -362,6 +362,32 @@ impl crate::TermWindow {
                         ElementContent::Text(_) => unreachable!(),
                         ElementContent::Poly { .. } => unreachable!(),
                         ElementContent::Children(mut kids) => {
+                            // Tab number badge (like iTerm2's Cmd+1..9 indicator)
+                            if self.config.show_tab_index_in_tab_bar {
+                                let tab_number = tab_idx
+                                    + if self.config.tab_and_split_indices_are_zero_based {
+                                        0
+                                    } else {
+                                        1
+                                    };
+                                let num_elem = Element::new(
+                                    &font,
+                                    ElementContent::Text(format!("{}", tab_number)),
+                                )
+                                .vertical_align(VerticalAlign::Middle)
+                                .colors(ElementColors {
+                                    border: BorderColor::default(),
+                                    bg: LinearRgba::TRANSPARENT.into(),
+                                    text: bar_colors.text.clone(),
+                                })
+                                .margin(BoxDimension {
+                                    left: Dimension::Cells(0.),
+                                    right: Dimension::Cells(0.15),
+                                    top: Dimension::Cells(0.),
+                                    bottom: Dimension::Cells(0.),
+                                });
+                                kids.insert(0, num_elem);
+                            }
                             if item.progress != Progress::None {
                                 let dot_color = match &item.progress {
                                     Progress::Error(_) => {

@@ -408,7 +408,7 @@ fn build_default_title(
     let mut title = title.to_string();
 
     let classic_spacing = if config.use_fancy_tab_bar { "" } else { " " };
-    if with_tab_index && config.show_tab_index_in_tab_bar {
+    if with_tab_index && config.show_tab_index_in_tab_bar && !config.use_fancy_tab_bar {
         let index = format!(
             "{classic_spacing}{}: ",
             tab.tab_index
