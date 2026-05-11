@@ -4343,6 +4343,18 @@ config.keys = (function() return {
     action = wezterm.action.ActivateTabRelative(1),
   },
 
+  -- Ctrl+Shift+Left/Right: move current tab left/right
+  {
+    key = 'LeftArrow',
+    mods = 'CTRL|SHIFT',
+    action = wezterm.action.MoveTabRelative(-1),
+  },
+  {
+    key = 'RightArrow',
+    mods = 'CTRL|SHIFT',
+    action = wezterm.action.MoveTabRelative(1),
+  },
+
   -- Pane Navigation
   -- Cmd+Option+Arrow: navigate between splits
   {
