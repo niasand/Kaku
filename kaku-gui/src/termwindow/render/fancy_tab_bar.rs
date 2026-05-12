@@ -62,6 +62,14 @@ const PROGRESS_CIRCLE_POLY: &[Poly] = &[Poly {
 }];
 
 const PROGRESS_DOT_SIZE: f32 = 14.0;
+const BADGE_CORNER: &[Poly] = &[Poly {
+    path: &[PolyCommand::Oval {
+        center: (BlockCoord::Frac(1, 2), BlockCoord::Frac(1, 2)),
+        radiuses: (BlockCoord::Frac(1, 2), BlockCoord::Frac(1, 2)),
+    }],
+    intensity: BlockAlpha::Full,
+    style: PolyStyle::Fill,
+}];
 
 impl crate::TermWindow {
     pub fn invalidate_fancy_tab_bar(&mut self) {
@@ -362,6 +370,79 @@ impl crate::TermWindow {
                         ElementContent::Text(_) => unreachable!(),
                         ElementContent::Poly { .. } => unreachable!(),
                         ElementContent::Children(mut kids) => {
+                            if self.config.show_tab_index_in_tab_bar {
+                                let index = tab_idx
+                                    + if self.config.tab_and_split_indices_are_zero_based {
+                                        0
+                                    } else {
+                                        1
+                                    };
+                                let badge_text = format!("{}", index);
+                                let badge_size = Dimension::Pixels(
+                                    metrics.cell_size.height as f32 * 0.7,
+                                );
+                                let badge = Element::new(
+                                    &font,
+                                    ElementContent::Text(badge_text),
+                                )
+                                .vertical_align(VerticalAlign::Middle)
+                                .item_type(UIItemType::TabBar(TabBarItem::None))
+                                .min_width(Some(badge_size))
+                                .min_height(Some(badge_size))
+                                .padding(BoxDimension {
+                                    left: Dimension::Pixels(3.0),
+                                    right: Dimension::Pixels(3.0),
+                                    top: Dimension::Pixels(1.0),
+                                    bottom: Dimension::Pixels(1.0),
+                                })
+                                .margin(BoxDimension {
+                                    left: Dimension::Cells(0.),
+                                    right: Dimension::Cells(0.25),
+                                    top: Dimension::Cells(0.),
+                                    bottom: Dimension::Cells(0.),
+                                })
+                                .border(BoxDimension::new(Dimension::Pixels(0.)))
+                                .border_corners(Some(Corners {
+                                    top_left: SizedPoly {
+                                        width: badge_size,
+                                        height: badge_size,
+                                        poly: BADGE_CORNER,
+                                    },
+                                    top_right: SizedPoly {
+                                        width: badge_size,
+                                        height: badge_size,
+                                        poly: BADGE_CORNER,
+                                    },
+                                    bottom_left: SizedPoly {
+                                        width: badge_size,
+                                        height: badge_size,
+                                        poly: BADGE_CORNER,
+                                    },
+                                    bottom_right: SizedPoly {
+                                        width: badge_size,
+                                        height: badge_size,
+                                        poly: BADGE_CORNER,
+                                    },
+                                }))
+                                .colors({
+                                    let bg = if active {
+                                        colors.active_tab().fg_color.to_linear()
+                                    } else {
+                                        colors.inactive_tab().fg_color.to_linear()
+                                    };
+                                    let text = if active {
+                                        colors.active_tab().bg_color.to_linear()
+                                    } else {
+                                        colors.inactive_tab().bg_color.to_linear()
+                                    };
+                                    ElementColors {
+                                        border: BorderColor::default(),
+                                        bg: bg.into(),
+                                        text: text.into(),
+                                    }
+                                });
+                                kids.insert(0, badge);
+                            }
                             if item.progress != Progress::None {
                                 let dot_color = match &item.progress {
                                     Progress::Error(_) => {
