@@ -1689,6 +1689,41 @@ impl super::TermWindow {
             }
         }
     }
+
+    /// Copy the working directory of the active pane in the given tab to clipboard.
+    pub fn copy_tab_cwd(&mut self, tab_idx: usize) {
+        let mux = Mux::get();
+        let mux_window = match mux.get_window(self.mux_window_id) {
+            Some(w) => w,
+            None => return,
+        };
+        let tab = match mux_window.get_by_idx(tab_idx) {
+            Some(t) => t,
+            None => return,
+        };
+        drop(mux_window);
+
+        let pane = match tab.get_active_pane() {
+            Some(p) => p,
+            None => return,
+        };
+
+        let cwd = match pane.get_current_working_dir(CachePolicy::AllowStale) {
+            Some(url) => url.path().to_string(),
+            None => return,
+        };
+
+        let display = cwd.trim_end_matches('/').to_string();
+        if display.is_empty() {
+            return;
+        }
+
+        self.copy_to_clipboard(
+            config::keyassignment::ClipboardCopyDestination::Clipboard,
+            display.clone(),
+        );
+        self.show_toast(format!("Copied: {}", display));
+    }
 }
 
 fn mouse_press_to_tmb(press: &MousePress) -> TMB {
@@ -2039,40 +2074,5 @@ mod tests {
             compute_drag_target(2, 200, Some(&tabs[1]), Some(&tabs[3])),
             None
         );
-    }
-
-    /// Copy the working directory of the active pane in the given tab to clipboard.
-    pub fn copy_tab_cwd(&mut self, tab_idx: usize) {
-        let mux = Mux::get();
-        let mux_window = match mux.get_window(self.mux_window_id) {
-            Some(w) => w,
-            None => return,
-        };
-        let tab = match mux_window.get_by_idx(tab_idx) {
-            Some(t) => t,
-            None => return,
-        };
-        drop(mux_window);
-
-        let pane = match tab.get_active_pane() {
-            Some(p) => p,
-            None => return,
-        };
-
-        let cwd = match pane.get_current_working_dir(CachePolicy::AllowStale) {
-            Some(url) => url.path().to_string(),
-            None => return,
-        };
-
-        let display = cwd.trim_end_matches('/').to_string();
-        if display.is_empty() {
-            return;
-        }
-
-        self.copy_to_clipboard(
-            config::keyassignment::ClipboardCopyDestination::Clipboard,
-            display.clone(),
-        );
-        self.show_toast(format!("Copied: {}", display));
     }
 }
