@@ -410,7 +410,8 @@ impl crate::TermWindow {
                                 }
                             }
 
-                            { // Always show ⌘+N badge
+                            {
+                                // Always show ⌘+N badge
                                 let display_idx =
                                     crate::tabbar::tab_display_index(tab_idx, &self.config);
                                 let badge_text = if display_idx <= 9 {
