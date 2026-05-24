@@ -371,7 +371,46 @@ impl crate::TermWindow {
                         ElementContent::Text(_) => unreachable!(),
                         ElementContent::Poly { .. } => unreachable!(),
                         ElementContent::Children(mut kids) => {
-                            if self.config.show_tab_index_in_tab_bar {
+                            // Truncate long title text with ".." suffix
+                            {
+                                let cell_w = metrics.cell_size.width as f32;
+                                let reserved_px = cell_w * 8.0 + 16.0;
+                                let max_title_chars =
+                                    (((max_tab_width - reserved_px) / cell_w).max(5.0)) as usize;
+                                let title_str: String = kids
+                                    .iter()
+                                    .filter_map(|k| match &k.content {
+                                        ElementContent::Text(s) => Some(s.as_str()),
+                                        _ => None,
+                                    })
+                                    .collect();
+                                if title_str.chars().count() > max_title_chars {
+                                    let truncated: String =
+                                        title_str.chars().take(max_title_chars - 2).collect();
+                                    let new_title = format!("{}..", truncated);
+                                    let mut first_text = true;
+                                    kids.retain(|k| {
+                                        if let ElementContent::Text(_) = &k.content {
+                                            if first_text {
+                                                first_text = false;
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        } else {
+                                            true
+                                        }
+                                    });
+                                    for kid in kids.iter_mut() {
+                                        if let ElementContent::Text(ref mut s) = kid.content {
+                                            *s = new_title;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
+                            { // Always show ⌘+N badge
                                 let display_idx =
                                     crate::tabbar::tab_display_index(tab_idx, &self.config);
                                 let badge_text = if display_idx <= 9 {
