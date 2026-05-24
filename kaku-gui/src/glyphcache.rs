@@ -1369,17 +1369,20 @@ impl GlyphCache {
     /// then we want to show the underline.
     pub fn cached_line_sprite(
         &mut self,
-        is_highlited_hyperlink: bool,
+        has_hyperlink: bool,
+        is_hovered_hyperlink: bool,
         is_strike_through: bool,
         underline: Underline,
         overline: bool,
         metrics: &RenderMetrics,
     ) -> anyhow::Result<Sprite> {
-        let effective_underline = match (is_highlited_hyperlink, underline) {
-            (true, Underline::None) => Underline::Single,
-            (true, Underline::Single) => Underline::Double,
-            (true, _) => Underline::Single,
-            (false, u) => u,
+        let effective_underline = match (has_hyperlink, is_hovered_hyperlink, underline) {
+            (_, true, Underline::None) => Underline::Double,
+            (_, true, Underline::Single) => Underline::Double,
+            (_, true, _) => Underline::Double,
+            (true, false, Underline::None) => Underline::Single,
+            (true, false, u) => u,
+            (false, false, u) => u,
         };
 
         let key = LineKey {

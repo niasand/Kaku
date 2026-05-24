@@ -1859,6 +1859,13 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
         ScrollToPrompt(n) => {
             let (direction, amount) = if *n < 0 { ("up", -n) } else { ("down", *n) };
             let ordinal = english_ordinal(amount);
+            let keys = if *n == -1 {
+                vec![(Modifiers::CTRL.union(Modifiers::SHIFT), "UpArrow".into())]
+            } else if *n == 1 {
+                vec![(Modifiers::CTRL.union(Modifiers::SHIFT), "DownArrow".into())]
+            } else {
+                vec![]
+            };
             CommandDef {
                 brief: format!("Scroll {direction} {amount} prompt(s)").into(),
                 doc: format!(
@@ -1866,7 +1873,7 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
                              {ordinal} semantic prompt zone in that direction"
                 )
                 .into(),
-                keys: vec![],
+                keys,
                 args: &[ArgType::ActivePane],
                 menubar: &[],
                 icon: None,
@@ -2547,6 +2554,8 @@ fn compute_default_actions() -> Vec<KeyAssignment> {
         ScrollByPage(NotNan::new(1.0).unwrap()),
         ScrollToTop,
         ScrollToBottom,
+        ScrollToPrompt(-1),
+        ScrollToPrompt(1),
         // ----------------- Window
         ToggleFullScreen,
         Hide,

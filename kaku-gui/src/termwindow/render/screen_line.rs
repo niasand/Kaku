@@ -786,9 +786,10 @@ impl crate::TermWindow {
                 let attrs = &cluster.attrs;
                 let style = self.fonts.match_style(params.config, attrs);
                 let hyperlink = attrs.hyperlink();
-                let is_highlited_hyperlink =
+                let is_hovered_hyperlink =
                     same_hyperlink(hyperlink, self.current_highlight.as_ref());
-                if hyperlink.is_some() {
+                let has_hyperlink = hyperlink.is_some();
+                if has_hyperlink {
                     invalidate_on_hover_change = true;
                 }
                 // underline and strikethrough
@@ -796,7 +797,8 @@ impl crate::TermWindow {
                     .glyph_cache
                     .borrow_mut()
                     .cached_line_sprite(
-                        is_highlited_hyperlink,
+                        has_hyperlink,
+                        is_hovered_hyperlink,
                         attrs.strikethrough(),
                         attrs.underline(),
                         attrs.overline(),
