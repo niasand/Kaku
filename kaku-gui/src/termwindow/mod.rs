@@ -4172,36 +4172,36 @@ impl TermWindow {
                 con.hide_application();
             }
             QuitApplication => {
-                let mux = Mux::get();
-                let config = &self.config;
-
-                match config.window_close_confirmation {
-                    WindowCloseConfirmation::NeverPrompt => {
-                        #[cfg(target_os = "macos")]
-                        {
-                            ::window::request_terminate(
-                                ::window::QuitOrigin::WindowScopeQuitApplication,
-                            );
-                        }
-                        #[cfg(not(target_os = "macos"))]
-                        {
+                #[cfg(target_os = "macos")]
+                {
+                    // Delegate to AppKit's standard quit flow so that
+                    // applicationShouldTerminate: shows the native NSAlert
+                    // confirmation dialog.
+                    ::window::os::macos::connection::request_terminate_via_appkit();
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    let config = &self.config;
+                    match config.window_close_confirmation {
+                        WindowCloseConfirmation::NeverPrompt => {
                             let con = Connection::get().expect("call on gui thread");
                             con.terminate_message_loop();
                         }
-                    }
-                    WindowCloseConfirmation::AlwaysPrompt => {
-                        let tab = match mux.get_active_tab_for_window(self.mux_window_id) {
-                            Some(tab) => tab,
-                            None => anyhow::bail!("no active tab!?"),
-                        };
+                        WindowCloseConfirmation::AlwaysPrompt => {
+                            let mux = Mux::get();
+                            let tab = match mux.get_active_tab_for_window(self.mux_window_id) {
+                                Some(tab) => tab,
+                                None => anyhow::bail!("no active tab!?"),
+                            };
 
-                        if let Some(window) = self.window.clone() {
-                            let (overlay, future) =
-                                start_overlay(self, &tab, move |tab_id, term| {
-                                    confirm_quit_program(term, window, tab_id)
-                                });
-                            self.assign_overlay(tab.tab_id(), overlay);
-                            promise::spawn::spawn(future).detach();
+                            if let Some(window) = self.window.clone() {
+                                let (overlay, future) =
+                                    start_overlay(self, &tab, move |tab_id, term| {
+                                        confirm_quit_program(term, window, tab_id)
+                                    });
+                                self.assign_overlay(tab.tab_id(), overlay);
+                                promise::spawn::spawn(future).detach();
+                            }
                         }
                     }
                 }

@@ -36,6 +36,16 @@ pub fn request_terminate(origin: QuitOrigin) {
     request_app_termination(origin, None);
 }
 
+/// Trigger the standard AppKit quit flow via `[NSApp terminate:nil]`.
+/// This invokes `applicationShouldTerminate:` on the app delegate, which
+/// shows the native confirmation dialog when `window_close_confirmation`
+/// is `AlwaysPrompt`.
+pub fn request_terminate_via_appkit() {
+    unsafe {
+        let () = msg_send![NSApp(), terminate: nil];
+    }
+}
+
 pub struct Connection {
     ns_app: id,
     pub(crate) windows: RefCell<HashMap<usize, Rc<RefCell<WindowInner>>>>,
