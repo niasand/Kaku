@@ -939,9 +939,7 @@ impl super::TermWindow {
                     TabBarItem::Tab { tab_idx, active } => {
                         if self.last_mouse_click.as_ref().map(|c| c.streak) == Some(2) {
                             self.tab_drag_state = None;
-                            if let Err(err) = self.begin_tab_rename(tab_idx, ui_item) {
-                                log::debug!("begin_tab_rename({tab_idx}) failed: {err:#}");
-                            }
+                            self.copy_tab_cwd(tab_idx);
                             context.set_cursor(Some(MouseCursor::Arrow));
                             return;
                         }
@@ -2041,5 +2039,40 @@ mod tests {
             compute_drag_target(2, 200, Some(&tabs[1]), Some(&tabs[3])),
             None
         );
+    }
+
+    /// Copy the working directory of the active pane in the given tab to clipboard.
+    pub fn copy_tab_cwd(&mut self, tab_idx: usize) {
+        let mux = Mux::get();
+        let mux_window = match mux.get_window(self.mux_window_id) {
+            Some(w) => w,
+            None => return,
+        };
+        let tab = match mux_window.get_by_idx(tab_idx) {
+            Some(t) => t,
+            None => return,
+        };
+        drop(mux_window);
+
+        let pane = match tab.get_active_pane() {
+            Some(p) => p,
+            None => return,
+        };
+
+        let cwd = match pane.get_current_working_dir(CachePolicy::AllowStale) {
+            Some(url) => url.path().to_string(),
+            None => return,
+        };
+
+        let display = cwd.trim_end_matches('/').to_string();
+        if display.is_empty() {
+            return;
+        }
+
+        self.copy_to_clipboard(
+            config::keyassignment::ClipboardCopyDestination::Clipboard,
+            display.clone(),
+        );
+        self.show_toast(format!("Copied: {}", display));
     }
 }
