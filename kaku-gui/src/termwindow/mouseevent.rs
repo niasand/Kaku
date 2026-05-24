@@ -1698,7 +1698,7 @@ impl super::TermWindow {
             None => return,
         };
         let tab = match mux_window.get_by_idx(tab_idx) {
-            Some(t) => t,
+            Some(t) => Arc::clone(t),
             None => return,
         };
         drop(mux_window);
