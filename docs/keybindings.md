@@ -9,10 +9,9 @@ All keybindings use macOS-native modifier keys. `Opt` = Option/Alt, `Ctrl` = Con
 | New window | `Cmd + N` |
 | Close pane / tab / hide | `Cmd + W` |
 | Close current tab | `Cmd + Shift + W` |
-| Hide application | `Cmd + H` |
+| Hide application | `Cmd + H`, `Cmd + Q` |
 | Minimize window | `Cmd + M` |
 | Toggle fullscreen | `Cmd + Ctrl + F` |
-| Quit | `Cmd + Q` |
 | Toggle global window | `Cmd + Opt + Ctrl + K` |
 
 > `Cmd + W` is smart: closes the active pane if there are multiple panes, closes the tab if there are multiple tabs or windows, otherwise hides the app.

@@ -1197,7 +1197,7 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
         HideApplication => CommandDef {
             brief: "Hide Kaku".into(),
             doc: "Hide all Kaku windows".into(),
-            keys: vec![(Modifiers::SUPER, "h".into())],
+            keys: vec![(Modifiers::SUPER, "h".into()), (Modifiers::SUPER, "q".into())],
             args: &[],
             menubar: &["Kaku"],
             icon: None,
@@ -1740,7 +1740,7 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
         QuitApplication => CommandDef {
             brief: "Quit Kaku".into(),
             doc: "Quits Kaku".into(),
-            keys: vec![(Modifiers::SUPER, "q".into())],
+            keys: vec![],
             args: &[],
             menubar: &["Kaku"],
             icon: None,
@@ -2639,7 +2639,7 @@ mod tests {
     use super::{derive_command_from_key_assignment, CommandDef};
     use config::keyassignment::KeyAssignment;
     use config::ConfigHandle;
-    use window::Modifiers;
+    use window::{KeyCode, Modifiers};
 
     #[test]
     fn toggle_current_tab_panes_input_broadcast_has_default_shortcut() {
@@ -2680,6 +2680,21 @@ mod tests {
         assert!(CommandDef::default_key_assignments(&config)
             .iter()
             .any(|(_, _, action)| *action == KeyAssignment::ToggleAllPanesInputBroadcast));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn command_q_hides_instead_of_quitting_by_default() {
+        let config = ConfigHandle::default_config();
+        let assignments = CommandDef::default_key_assignments(&config);
+        let command_q = (Modifiers::SUPER, KeyCode::Char('q'));
+
+        assert!(assignments.iter().any(|(mods, key, action)| {
+            (*mods, key.clone()) == command_q && *action == KeyAssignment::HideApplication
+        }));
+        assert!(!assignments.iter().any(|(mods, key, action)| {
+            (*mods, key.clone()) == command_q && *action == KeyAssignment::QuitApplication
+        }));
     }
 
     #[test]
