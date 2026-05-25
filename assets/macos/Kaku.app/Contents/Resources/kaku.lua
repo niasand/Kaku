@@ -1855,11 +1855,11 @@ config.keys = (function() return {
     }),
   },
 
-  -- Cmd+Q: hide Kaku and keep sessions running
+  -- Cmd+Q: confirm and quit
   {
     key = 'q',
     mods = 'CMD',
-    action = wezterm.action.HideApplication,
+    action = wezterm.action.QuitApplication,
   },
 
   -- Cmd+N: new window

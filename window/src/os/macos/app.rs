@@ -10,7 +10,6 @@ use cocoa::appkit::{
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSInteger, NSRect, NSUInteger};
 use config::keyassignment::KeyAssignment;
-use config::WindowCloseConfirmation;
 use core_foundation::base::{CFTypeID, TCFType};
 use core_foundation::data::{CFData, CFDataGetBytePtr, CFDataRef};
 use core_foundation::string::{CFStringRef, UniChar};
@@ -603,38 +602,28 @@ extern "C" fn application_should_terminate(
     _app: *mut Object,
 ) -> u64 {
     unsafe {
-        match config::configuration().window_close_confirmation {
-            WindowCloseConfirmation::NeverPrompt => terminate_now(
+        let alert: id = msg_send![class!(NSAlert), alloc];
+        let alert: id = msg_send![alert, init];
+        let message_text = nsstring("Quit Kaku?");
+        let info_text = nsstring("All open tabs and panes will be closed.");
+        let cancel = nsstring("Cancel");
+        let quit = nsstring("Quit");
+
+        let () = msg_send![alert, setMessageText: message_text];
+        let () = msg_send![alert, setInformativeText: info_text];
+        let () = msg_send![alert, addButtonWithTitle: cancel];
+        let () = msg_send![alert, addButtonWithTitle: quit];
+        #[allow(non_upper_case_globals)]
+        const NSModalResponseCancel: NSInteger = 1000;
+        let result: NSInteger = msg_send![alert, runModal];
+
+        if result == NSModalResponseCancel {
+            NSApplicationTerminateReply::NSTerminateCancel as u64
+        } else {
+            terminate_now(
                 QuitOrigin::AppKitShouldTerminate,
                 Some("applicationShouldTerminate"),
-            ),
-            WindowCloseConfirmation::AlwaysPrompt => {
-                let alert: id = msg_send![class!(NSAlert), alloc];
-                let alert: id = msg_send![alert, init];
-                let message_text = nsstring("Terminate Kaku?");
-                let info_text = nsstring("Detach and close all panes and terminate Kaku?");
-                let cancel = nsstring("Cancel");
-                let ok = nsstring("Ok");
-
-                let () = msg_send![alert, setMessageText: message_text];
-                let () = msg_send![alert, setInformativeText: info_text];
-                let () = msg_send![alert, addButtonWithTitle: cancel];
-                let () = msg_send![alert, addButtonWithTitle: ok];
-                #[allow(non_upper_case_globals)]
-                const NSModalResponseCancel: NSInteger = 1000;
-                #[allow(non_upper_case_globals, dead_code)]
-                const NSModalResponseOK: NSInteger = 1001;
-                let result: NSInteger = msg_send![alert, runModal];
-
-                if result == NSModalResponseCancel {
-                    NSApplicationTerminateReply::NSTerminateCancel as u64
-                } else {
-                    terminate_now(
-                        QuitOrigin::AppKitShouldTerminate,
-                        Some("applicationShouldTerminate"),
-                    )
-                }
-            }
+            )
         }
     }
 }

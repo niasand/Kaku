@@ -785,13 +785,11 @@ impl GuiFrontEnd {
                     }
                     KeyAssignment::QuitApplication => {
                         // If we get here, there are no windows that could have received
-                        // the QuitApplication command, therefore it must be ok to quit
-                        // immediately
+                        // the QuitApplication command. On macOS, still route through
+                        // AppKit so Command-Q and the app menu use the same confirmation.
                         #[cfg(target_os = "macos")]
                         {
-                            ::window::request_terminate(
-                                ::window::QuitOrigin::AppScopeQuitApplication,
-                            );
+                            ::window::os::macos::connection::request_terminate_via_appkit();
                         }
                         #[cfg(not(target_os = "macos"))]
                         {

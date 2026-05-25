@@ -1197,7 +1197,7 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
         HideApplication => CommandDef {
             brief: "Hide Kaku".into(),
             doc: "Hide all Kaku windows".into(),
-            keys: vec![(Modifiers::SUPER, "h".into()), (Modifiers::SUPER, "q".into())],
+            keys: vec![(Modifiers::SUPER, "h".into())],
             args: &[],
             menubar: &["Kaku"],
             icon: None,
@@ -1740,7 +1740,7 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
         QuitApplication => CommandDef {
             brief: "Quit Kaku".into(),
             doc: "Quits Kaku".into(),
-            keys: vec![],
+            keys: vec![(Modifiers::SUPER, "q".into())],
             args: &[],
             menubar: &["Kaku"],
             icon: None,
@@ -2684,15 +2684,12 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn command_q_hides_instead_of_quitting_by_default() {
+    fn command_q_requests_quit_by_default() {
         let config = ConfigHandle::default_config();
         let assignments = CommandDef::default_key_assignments(&config);
         let command_q = (Modifiers::SUPER, KeyCode::Char('q'));
 
         assert!(assignments.iter().any(|(mods, key, action)| {
-            (*mods, key.clone()) == command_q && *action == KeyAssignment::HideApplication
-        }));
-        assert!(!assignments.iter().any(|(mods, key, action)| {
             (*mods, key.clone()) == command_q && *action == KeyAssignment::QuitApplication
         }));
     }
