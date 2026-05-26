@@ -111,16 +111,29 @@ pub trait Domain: Downcast + Send + Sync {
         encoding: PaneEncoding,
         window: WindowId,
     ) -> anyhow::Result<Arc<Tab>> {
-        let pane = self
+        // Create the tab and register it with the window immediately so that
+        // the tab bar updates without waiting for the PTY/shell to finish
+        // spawning (which can take hundreds of milliseconds due to shell
+        // init scripts like .zshrc).
+        let tab = Arc::new(Tab::new(&size));
+        mux.add_tab_no_panes(&tab);
+        mux.add_tab_to_window(&tab, window)?;
+
+        let pane = match self
             .spawn_pane(mux, size, command, command_dir, encoding)
             .await
-            .context("spawn")?;
+        {
+            Ok(pane) => pane,
+            Err(err) => {
+                // Remove the placeholder tab so the window isn't left with
+                // an empty, unusable tab.
+                mux.remove_tab(tab.tab_id());
+                return Err(err.context("spawn"));
+            }
+        };
 
-        let tab = Arc::new(Tab::new(&size));
         tab.assign_pane(&pane);
-
-        mux.add_tab_and_active_pane(&tab)?;
-        mux.add_tab_to_window(&tab, window)?;
+        mux.add_pane(&pane)?;
 
         Ok(tab)
     }
