@@ -10,6 +10,8 @@ use crate::termwindow::{UIItem, UIItemType};
 use crate::utilsprites::RenderMetrics;
 use config::{Dimension, DimensionContext, TabBarColors};
 use std::rc::Rc;
+use termwiz::cell::unicode_column_width;
+use unicode_segmentation::UnicodeSegmentation;
 use wezterm_font::LoadedFont;
 use wezterm_term::color::{ColorAttribute, ColorPalette};
 use wezterm_term::Progress;
@@ -371,12 +373,12 @@ impl crate::TermWindow {
                         ElementContent::Text(_) => unreachable!(),
                         ElementContent::Poly { .. } => unreachable!(),
                         ElementContent::Children(mut kids) => {
-                            // Truncate long title text with ".." suffix
+                            // Truncate long title text from the front so the directory suffix stays visible.
                             {
                                 let cell_w = metrics.cell_size.width as f32;
                                 let reserved_px = cell_w * 8.0 + 16.0;
-                                let max_title_chars =
-                                    (((max_tab_width - reserved_px) / cell_w).max(5.0)) as usize;
+                                let title_max_px = (max_tab_width - reserved_px).max(0.0);
+                                let max_title_columns = (title_max_px / cell_w).floor() as usize;
                                 let title_str: String = kids
                                     .iter()
                                     .filter_map(|k| match &k.content {
@@ -384,10 +386,9 @@ impl crate::TermWindow {
                                         _ => None,
                                     })
                                     .collect();
-                                if title_str.chars().count() > max_title_chars {
-                                    let skip = title_str.chars().count() - (max_title_chars - 2);
-                                    let truncated: String = title_str.chars().skip(skip).collect();
-                                    let new_title = format!("..{}", truncated);
+                                if let Some(new_title) =
+                                    truncate_title_from_front(&title_str, max_title_columns)
+                                {
                                     let mut first_text = true;
                                     kids.retain(|k| {
                                         if let ElementContent::Text(_) = &k.content {
@@ -404,6 +405,7 @@ impl crate::TermWindow {
                                     for kid in kids.iter_mut() {
                                         if let ElementContent::Text(ref mut s) = kid.content {
                                             *s = new_title;
+                                            kid.max_width = Some(Dimension::Pixels(title_max_px));
                                             break;
                                         }
                                     }
@@ -461,7 +463,7 @@ impl crate::TermWindow {
                                             text: text.into(),
                                         }
                                     });
-                                kids.insert(1, badge);
+                                kids.insert(kids.len().min(1), badge);
                             }
                             if item.progress != Progress::None {
                                 let dot_color = match &item.progress {
@@ -658,6 +660,40 @@ impl crate::TermWindow {
     }
 }
 
+fn truncate_title_from_front(title: &str, max_columns: usize) -> Option<String> {
+    if unicode_column_width(title, None) <= max_columns {
+        return None;
+    }
+
+    if max_columns == 0 {
+        return Some(String::new());
+    }
+
+    let ellipsis = "..";
+    let ellipsis_width = unicode_column_width(ellipsis, None);
+    if max_columns <= ellipsis_width {
+        return Some(".".repeat(max_columns));
+    }
+
+    let suffix_columns = max_columns - ellipsis_width;
+    let mut used_columns = 0;
+    let mut suffix = vec![];
+    for grapheme in title.graphemes(true).rev() {
+        let width = unicode_column_width(grapheme, None);
+        if used_columns + width > suffix_columns {
+            break;
+        }
+        used_columns += width;
+        suffix.push(grapheme);
+    }
+
+    let mut truncated = String::from(ellipsis);
+    for grapheme in suffix.iter().rev() {
+        truncated.push_str(grapheme);
+    }
+    Some(truncated)
+}
+
 fn make_x_button(
     font: &Rc<LoadedFont>,
     metrics: &RenderMetrics,
@@ -738,5 +774,31 @@ fn apply_tab_offsets(
         for kid in kids {
             apply_tab_offsets(kid, offsets);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_title_from_front;
+
+    #[test]
+    fn truncate_title_from_front_keeps_ascii_suffix() {
+        assert_eq!(
+            truncate_title_from_front("/a/very/long/path/project", 10).as_deref(),
+            Some("../project")
+        );
+    }
+
+    #[test]
+    fn truncate_title_from_front_uses_display_columns() {
+        assert_eq!(
+            truncate_title_from_front("项目目录后缀", 6).as_deref(),
+            Some("..后缀")
+        );
+    }
+
+    #[test]
+    fn truncate_title_from_front_leaves_short_titles_alone() {
+        assert_eq!(truncate_title_from_front("project", 8), None);
     }
 }
