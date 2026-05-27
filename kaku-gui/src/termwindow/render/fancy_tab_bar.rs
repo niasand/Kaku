@@ -801,4 +801,9 @@ mod tests {
     fn truncate_title_from_front_leaves_short_titles_alone() {
         assert_eq!(truncate_title_from_front("project", 8), None);
     }
+
+    #[test]
+    fn truncate_title_from_front_allows_no_title_space() {
+        assert_eq!(truncate_title_from_front("project", 0).as_deref(), Some(""));
+    }
 }
