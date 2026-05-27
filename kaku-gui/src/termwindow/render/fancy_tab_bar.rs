@@ -379,10 +379,8 @@ impl crate::TermWindow {
                         ElementContent::Children(mut kids) => {
                             // Truncate long title text from the front so the directory suffix stays visible.
                             {
-                                let cell_w = metrics.cell_size.width as f32;
-                                let reserved_px = cell_w * 8.0 + 16.0;
-                                let title_max_px = (max_tab_width - reserved_px).max(0.0);
-                                let max_title_columns = (title_max_px / cell_w).floor() as usize;
+                                let (title_max_px, max_title_columns) =
+                                    tab_title_budget(max_tab_width, metrics.cell_size.width as f32);
                                 let title_str: String = kids
                                     .iter()
                                     .filter_map(|k| match &k.content {
@@ -694,7 +692,15 @@ fn truncate_title_from_front(title: &str, max_columns: usize) -> Option<String> 
     Some(truncated)
 }
 
+fn tab_title_budget(max_tab_width: f32, cell_width: f32) -> (f32, usize) {
+    let title_max_px = (max_tab_width - (cell_width * 8.0 + 16.0)).max(0.0);
+    let max_title_columns = (title_max_px / cell_width).floor() as usize;
+    (title_max_px, max_title_columns)
+}
+
 fn tab_badge_text(tab_idx: usize, tab_count: usize, display_idx: usize) -> String {
+    // Only the first eight tabs and the right-most tab have direct macOS shortcuts.
+    // Other tabs fall back to the configured display index without a shortcut prefix.
     if tab_idx < 8 {
         format!("⌘+{}", tab_idx + 1)
     } else if tab_idx + 1 == tab_count {
@@ -789,7 +795,7 @@ fn apply_tab_offsets(
 
 #[cfg(test)]
 mod tests {
-    use super::{tab_badge_text, truncate_title_from_front};
+    use super::{tab_badge_text, tab_title_budget, truncate_title_from_front};
 
     #[test]
     fn truncate_title_from_front_keeps_ascii_suffix() {
@@ -818,6 +824,26 @@ mod tests {
     }
 
     #[test]
+    fn tab_title_budget_can_give_all_space_to_the_shortcut_badge() {
+        let (title_max_px, max_title_columns) = tab_title_budget(90.0, 10.0);
+
+        assert_eq!(title_max_px, 0.0);
+        assert_eq!(max_title_columns, 0);
+        assert_eq!(
+            truncate_title_from_front("project", max_title_columns).as_deref(),
+            Some("")
+        );
+    }
+
+    #[test]
+    fn tab_title_budget_uses_remaining_columns_after_badge_reservation() {
+        let (title_max_px, max_title_columns) = tab_title_budget(140.0, 10.0);
+
+        assert_eq!(title_max_px, 44.0);
+        assert_eq!(max_title_columns, 4);
+    }
+
+    #[test]
     fn tab_badge_text_uses_actual_command_shortcut_for_first_eight_tabs() {
         assert_eq!(tab_badge_text(0, 10, 0), "⌘+1");
         assert_eq!(tab_badge_text(7, 10, 7), "⌘+8");
@@ -830,7 +856,8 @@ mod tests {
     }
 
     #[test]
-    fn tab_badge_text_falls_back_to_display_index_without_shortcut() {
+    fn tab_badge_text_falls_back_to_configured_display_index_without_shortcut() {
         assert_eq!(tab_badge_text(8, 12, 9), "9");
+        assert_eq!(tab_badge_text(8, 12, 8), "8");
     }
 }
