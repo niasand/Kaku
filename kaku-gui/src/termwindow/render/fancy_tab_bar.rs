@@ -331,6 +331,10 @@ impl crate::TermWindow {
                 _ => 0.,
             })
             .sum();
+        let tab_count = items
+            .iter()
+            .filter(|item| matches!(item.item, TabBarItem::Tab { .. }))
+            .count();
         let max_tab_width = ((self.dimensions.pixel_width as f32 / num_tabs.max(1.0))
             - (1.5 * metrics.cell_size.width as f32))
             .max(0.);
@@ -416,11 +420,7 @@ impl crate::TermWindow {
                                 // Always show ⌘+N badge
                                 let display_idx =
                                     crate::tabbar::tab_display_index(tab_idx, &self.config);
-                                let badge_text = if display_idx <= 9 {
-                                    format!("⌘+{}", display_idx)
-                                } else {
-                                    format!("{}", display_idx)
-                                };
+                                let badge_text = tab_badge_text(tab_idx, tab_count, display_idx);
                                 let badge_size =
                                     Dimension::Pixels(metrics.cell_size.height as f32 * 0.7);
                                 let badge = Element::new(&font, ElementContent::Text(badge_text))
@@ -694,6 +694,16 @@ fn truncate_title_from_front(title: &str, max_columns: usize) -> Option<String> 
     Some(truncated)
 }
 
+fn tab_badge_text(tab_idx: usize, tab_count: usize, display_idx: usize) -> String {
+    if tab_idx < 8 {
+        format!("⌘+{}", tab_idx + 1)
+    } else if tab_idx + 1 == tab_count {
+        "⌘+9".to_string()
+    } else {
+        display_idx.to_string()
+    }
+}
+
 fn make_x_button(
     font: &Rc<LoadedFont>,
     metrics: &RenderMetrics,
@@ -779,7 +789,7 @@ fn apply_tab_offsets(
 
 #[cfg(test)]
 mod tests {
-    use super::truncate_title_from_front;
+    use super::{tab_badge_text, truncate_title_from_front};
 
     #[test]
     fn truncate_title_from_front_keeps_ascii_suffix() {
@@ -805,5 +815,22 @@ mod tests {
     #[test]
     fn truncate_title_from_front_allows_no_title_space() {
         assert_eq!(truncate_title_from_front("project", 0).as_deref(), Some(""));
+    }
+
+    #[test]
+    fn tab_badge_text_uses_actual_command_shortcut_for_first_eight_tabs() {
+        assert_eq!(tab_badge_text(0, 10, 0), "⌘+1");
+        assert_eq!(tab_badge_text(7, 10, 7), "⌘+8");
+    }
+
+    #[test]
+    fn tab_badge_text_uses_command_nine_for_last_tab() {
+        assert_eq!(tab_badge_text(8, 9, 9), "⌘+9");
+        assert_eq!(tab_badge_text(11, 12, 12), "⌘+9");
+    }
+
+    #[test]
+    fn tab_badge_text_falls_back_to_display_index_without_shortcut() {
+        assert_eq!(tab_badge_text(8, 12, 9), "9");
     }
 }
