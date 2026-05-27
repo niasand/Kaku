@@ -386,8 +386,7 @@ impl crate::TermWindow {
                                     .collect();
                                 if title_str.chars().count() > max_title_chars {
                                     let skip = title_str.chars().count() - (max_title_chars - 2);
-                                    let truncated: String =
-                                        title_str.chars().skip(skip).collect();
+                                    let truncated: String = title_str.chars().skip(skip).collect();
                                     let new_title = format!("..{}", truncated);
                                     let mut first_text = true;
                                     kids.retain(|k| {
