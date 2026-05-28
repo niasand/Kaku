@@ -755,9 +755,6 @@ impl MuxWindowBuilder {
         if mux.is_main_thread() {
             // If we're already on the mux thread, just send the notification
             // immediately.
-            // This is super important for Wayland; if we push it to the
-            // spawn queue below then the extra milliseconds of delay
-            // causes it to get confused and shutdown the connection!?
             mux.notify(MuxNotification::WindowCreated(window_id));
         } else {
             promise::spawn::spawn_into_main_thread(async move {

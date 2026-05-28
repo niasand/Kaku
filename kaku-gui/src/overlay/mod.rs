@@ -1,4 +1,5 @@
 use crate::termwindow::TermWindow;
+use anyhow::anyhow;
 use mux::pane::{Pane, PaneId};
 use mux::tab::{Tab, TabId};
 use mux::termwiztermtab::{allocate, TermWizTerminal};
@@ -60,7 +61,13 @@ where
         Arc::new(config::TermConfig::with_config(term_window.config.clone()));
     let (tw_term, tw_tab) = allocate(tab_size, term_config);
 
-    let window = term_window.window.clone().unwrap();
+    let window = match term_window.window.clone() {
+        Some(w) => w,
+        None => {
+            log::warn!("start_overlay: window not initialized");
+            return (tw_tab, Box::pin(async { Err(anyhow::anyhow!("window not initialized")) }));
+        }
+    };
 
     let overlay_pane_id = tw_tab.pane_id();
 
@@ -98,7 +105,13 @@ where
         Arc::new(config::TermConfig::with_config(term_window.config.clone()));
     let (tw_term, tw_tab) = allocate(size, term_config);
 
-    let window = term_window.window.clone().unwrap();
+    let window = match term_window.window.clone() {
+        Some(w) => w,
+        None => {
+            log::warn!("start_overlay_pane: window not initialized");
+            return (tw_tab, Box::pin(async { Err(anyhow::anyhow!("window not initialized")) }));
+        }
+    };
 
     let future = promise::spawn::spawn_into_new_thread(move || {
         let res = func(pane_id, tw_term);

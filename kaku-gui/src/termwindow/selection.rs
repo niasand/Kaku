@@ -157,7 +157,9 @@ impl super::TermWindow {
     pub fn clear_selection(&mut self, pane: &Arc<dyn Pane>) {
         let mut selection = self.selection(pane.pane_id());
         selection.clear();
-        self.window.as_ref().unwrap().invalidate();
+        if let Some(win) = self.window.as_ref() {
+            win.invalidate();
+        }
     }
 
     pub fn extend_selection_at_mouse_cursor(&mut self, mode: SelectionMode, pane: &Arc<dyn Pane>) {
@@ -278,7 +280,9 @@ impl super::TermWindow {
             self.set_viewport(pane.pane_id(), Some(top + 1), dims);
         }
 
-        self.window.as_ref().unwrap().invalidate();
+        if let Some(win) = self.window.as_ref() {
+            win.invalidate();
+        }
     }
 
     pub fn select_text_at_mouse_cursor(&mut self, mode: SelectionMode, pane: &Arc<dyn Pane>) {
@@ -318,6 +322,8 @@ impl super::TermWindow {
             }
         }
 
-        self.window.as_ref().unwrap().invalidate();
+        if let Some(win) = self.window.as_ref() {
+            win.invalidate();
+        }
     }
 }

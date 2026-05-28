@@ -16,7 +16,7 @@ check:
 	cargo check --locked -p wezterm-ssh
 
 app:
-	PROFILE=debug ./scripts/build.sh --app-only 2>&1 | grep -v "ranlib: warning:.*has no symbols"; exit $${PIPESTATUS[0]}
+	PROFILE=debug ./scripts/build.sh --app-only 2>&1 | sed '/ranlib: warning:.*has no symbols/d'; exit $${PIPESTATUS[0]}
 
 dev:
 	@if ! command -v cargo-watch >/dev/null 2>&1; then \

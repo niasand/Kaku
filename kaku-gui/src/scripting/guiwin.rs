@@ -22,7 +22,10 @@ pub struct GuiWin {
 
 impl GuiWin {
     pub fn new(term_window: &TermWindow) -> Self {
-        let window = term_window.window.clone().unwrap();
+        let window = term_window
+            .window
+            .clone()
+            .expect("GuiWin::new called before window initialization");
         let mux_window_id = term_window.mux_window_id;
         Self {
             window,

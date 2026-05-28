@@ -2325,7 +2325,7 @@ fn default_prefer_egl() -> bool {
     if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
         return false;
     }
-    !cfg!(windows)
+    true
 }
 
 fn default_clean_exits() -> Vec<u32> {
@@ -2494,11 +2494,7 @@ pub enum DroppedFileQuoting {
 
 impl Default for DroppedFileQuoting {
     fn default() -> Self {
-        if cfg!(windows) {
-            Self::Windows
-        } else {
-            Self::SpacesOnly
-        }
+        Self::SpacesOnly
     }
 }
 

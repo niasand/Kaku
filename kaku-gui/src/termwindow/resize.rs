@@ -583,13 +583,7 @@ impl super::TermWindow {
         // Queue up a speculative resize in order to preserve the number of rows+cols
         if let Some(cell_dims) = scale_changed_cells {
             // If we don't think the dimensions have changed, don't request
-            // the window to change.  This seems to help on Wayland where
-            // we won't know what size the compositor thinks we should have
-            // when we're first opened, until after it sends us a configure event.
-            // If we send this too early, it will trump that configure event
-            // and we'll end up with weirdness where our window renders in the
-            // middle of a larger region that the compositor thinks we live in.
-            // Wayland is weird!
+            // the window to change.
             if allow_speculative_window_resize && saved_dims != dims {
                 log::trace!(
                     "scale changed so resize from {:?} to {:?} {:?} (event called with {:?})",
@@ -998,7 +992,7 @@ fn user_has_custom_window_padding_assignment() -> bool {
     let path = user_custom_window_padding_config_path();
     let modified = fs::metadata(&path).and_then(|meta| meta.modified()).ok();
     let cache = CACHE.get_or_init(|| Mutex::new(None));
-    let mut cache = cache.lock().unwrap();
+    let mut cache = crate::termwindow::recover_lock(cache);
 
     if let Some(cached) = cache.as_ref() {
         if cached.path == path && cached.modified == modified {

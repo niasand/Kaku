@@ -407,6 +407,16 @@ lazy_static::lazy_static! {
     static ref RENDER_METRICS_CACHE: Mutex<Option<RenderMetricsCacheEntry>> = Mutex::new(None);
 }
 
+pub(crate) fn recover_lock<T>(lock: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    match lock.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            log::warn!("lock poisoned, recovering: {e}");
+            e.into_inner()
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct RenderMetricsCacheKey {
     dpi: usize,
@@ -555,19 +565,19 @@ fn render_metrics_from_cache_or_compute(
         cell_width_bits: config.cell_width.to_bits(),
     };
 
-    if let Some(entry) = *RENDER_METRICS_CACHE.lock().unwrap() {
+    if let Some(entry) = *recover_lock(&RENDER_METRICS_CACHE) {
         if entry.key == key {
             return Ok((entry.metrics, true));
         }
     }
 
     if let Some(metrics) = load_render_metrics_from_disk(key) {
-        *RENDER_METRICS_CACHE.lock().unwrap() = Some(RenderMetricsCacheEntry { key, metrics });
+        *recover_lock(&RENDER_METRICS_CACHE) = Some(RenderMetricsCacheEntry { key, metrics });
         return Ok((metrics, true));
     }
 
     let metrics = RenderMetrics::new(fonts)?;
-    *RENDER_METRICS_CACHE.lock().unwrap() = Some(RenderMetricsCacheEntry { key, metrics });
+    *recover_lock(&RENDER_METRICS_CACHE) = Some(RenderMetricsCacheEntry { key, metrics });
     persist_render_metrics_to_disk(key, metrics);
     Ok((metrics, false))
 }
@@ -575,15 +585,15 @@ fn render_metrics_from_cache_or_compute(
 pub const ICON_DATA: &'static [u8] = include_bytes!("../../../assets/logo.png");
 
 pub fn set_window_position(pos: GuiPosition) {
-    POSITION.lock().unwrap().replace(pos);
+    recover_lock(&POSITION).replace(pos);
 }
 
 pub fn set_window_class(cls: &str) {
-    *WINDOW_CLASS.lock().unwrap() = cls.to_owned();
+    *recover_lock(&WINDOW_CLASS) = cls.to_owned();
 }
 
 pub fn get_window_class() -> String {
-    WINDOW_CLASS.lock().unwrap().clone()
+    recover_lock(&WINDOW_CLASS).clone()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1617,7 +1627,7 @@ impl TermWindow {
         if let Some(position) = mux
             .get_window(mux_window_id)
             .and_then(|window| window.get_initial_position().clone())
-            .or_else(|| POSITION.lock().unwrap().take())
+            .or_else(|| recover_lock(&POSITION).take())
         {
             x.replace(position.x);
             y.replace(position.y);
@@ -2283,7 +2293,7 @@ impl TermWindow {
             }
             TermWindowNotif::SwitchToMuxWindow(mux_window_id) => {
                 self.mux_window_id = mux_window_id;
-                *self.mux_window_id_for_subscriptions.lock().unwrap() = mux_window_id;
+                *recover_lock(&self.mux_window_id_for_subscriptions) = mux_window_id;
 
                 self.clear_all_overlays();
                 self.current_highlight.take();
@@ -2495,7 +2505,7 @@ impl TermWindow {
             if dead.load(Ordering::Relaxed) {
                 return false;
             }
-            let mux_window_id = *mux_window_id.lock().unwrap();
+            let mux_window_id = *recover_lock(&mux_window_id);
 
             // Pre-filter notifications to avoid unnecessary main thread task spawning.
             // This reduces O(windows × notifications) fan-out in multi-window scenarios.
@@ -3704,7 +3714,10 @@ impl TermWindow {
 
     fn show_launcher_impl(&mut self, args: LauncherActionArgs, initial_choice_idx: usize) {
         let mux_window_id = self.mux_window_id;
-        let window = self.window.as_ref().unwrap().clone();
+        let window = match self.window.as_ref() {
+            Some(w) => w.clone(),
+            None => return,
+        };
 
         let mux = Mux::get();
         let tab = match mux.get_active_tab_for_window(self.mux_window_id) {
@@ -3723,7 +3736,7 @@ impl TermWindow {
             .domain_id();
         let pane_id = pane.pane_id();
         let tab_id = tab.tab_id();
-        let title = args.title.unwrap();
+        let title = args.title.unwrap_or_default();
         let flags = args.flags;
         let help_text = args.help_text.unwrap_or(
             "Select an item and press Enter=launch  \
@@ -4272,8 +4285,9 @@ impl TermWindow {
             }
             ClearScrollback(erase_mode) => {
                 pane.erase_scrollback(*erase_mode);
-                let window = self.window.as_ref().unwrap();
-                window.invalidate();
+                if let Some(window) = self.window.as_ref() {
+                    window.invalidate();
+                }
             }
             Search(pattern) => {
                 if let Some(pane) = self.get_active_pane_or_overlay() {
@@ -5967,5 +5981,28 @@ mod tests {
             bell_notification_message(None, None, "\u{273B}", None),
             "Background task complete"
         );
+    }
+
+    #[test]
+    fn recover_lock_returns_guard_on_ok() {
+        let mx = Mutex::new(42usize);
+        let guard = recover_lock(&mx);
+        assert_eq!(*guard, 42);
+    }
+
+    #[test]
+    fn recover_lock_recovers_from_poison() {
+        let mx = Mutex::new(10usize);
+        // Poison the lock by panicking while holding it
+        let panic_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = mx.lock().unwrap();
+            panic!("intentional test panic");
+        }));
+        assert!(panic_result.is_err());
+        assert!(mx.is_poisoned());
+
+        // recover_lock should still return a usable guard
+        let guard = recover_lock(&mx);
+        assert_eq!(*guard, 10);
     }
 }

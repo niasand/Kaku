@@ -1,17 +1,3 @@
-#![allow(clippy::cast_abs_to_unsigned)]
-#![allow(clippy::collapsible_else_if)]
-#![allow(clippy::double_ended_iterator_last)]
-#![allow(clippy::enum_variant_names)]
-#![allow(clippy::if_same_then_else)]
-#![allow(clippy::manual_find)]
-#![allow(clippy::manual_is_multiple_of)]
-#![allow(clippy::needless_borrow)]
-#![allow(clippy::needless_return)]
-#![allow(clippy::question_mark)]
-#![allow(clippy::single_match)]
-#![allow(clippy::single_range_in_vec_init)]
-#![allow(clippy::unwrap_or_default)]
-#![allow(clippy::useless_conversion)]
 
 use anyhow::{anyhow, Context};
 use clap::builder::ValueParser;

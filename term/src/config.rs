@@ -107,23 +107,12 @@ impl Default for NewlineCanon {
         // at all, but when in WSL, pasting with CRLF gives excess blank lines.
         //
         // To come to a compromise, if wezterm is running on Windows then we'll
-        // use canonical CRLF unless the embedded application has enabled
-        // bracketed paste: we can use bracketed paste mode as a signal that
-        // the application will prefer newlines.
-        //
-        // In practice this means that unix shells and vim will get the
-        // unix newlines in their pastes (which is the UX I want) and
-        // cmd.exe will get CRLF.
-        if cfg!(windows) {
-            Self::CarriageReturnAndLineFeed
-        } else {
-            // For compatibility with the `nano` editor, which unfortunately
-            // treats \n as a shortcut that justifies text
-            // <https://savannah.gnu.org/bugs/?49176>, we default to
-            // \r which is typically fine.
-            // <https://github.com/wezterm/wezterm/issues/1575>
-            Self::CarriageReturn
-        }
+        // For compatibility with the `nano` editor, which unfortunately
+        // treats \n as a shortcut that justifies text
+        // <https://savannah.gnu.org/bugs/?49176>, we default to
+        // \r which is typically fine.
+        // <https://github.com/wezterm/wezterm/issues/1575>
+        Self::CarriageReturn
     }
 }
 

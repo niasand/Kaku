@@ -20,7 +20,9 @@ impl TermWindow {
         };
         for &c in &clipboard {
             if let Some(c) = c {
-                self.window.as_ref().unwrap().set_clipboard(c, text.clone());
+                if let Some(win) = self.window.as_ref() {
+                    win.set_clipboard(c, text.clone());
+                }
             }
         }
     }
@@ -92,7 +94,10 @@ impl TermWindow {
             pane_ids,
             clipboard
         );
-        let window = self.window.as_ref().unwrap().clone();
+        let window = match self.window.as_ref() {
+            Some(w) => w.clone(),
+            None => return,
+        };
         let clipboard = match clipboard {
             ClipboardPasteSource::Clipboard => Clipboard::Clipboard,
             ClipboardPasteSource::PrimarySelection => Clipboard::PrimarySelection,

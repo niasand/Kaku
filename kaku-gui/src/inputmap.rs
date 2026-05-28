@@ -62,9 +62,8 @@ impl InputMap {
                 // here and register the result if it isn't already in the map.
                 //
                 // Our default set of assignments deliberately and explicitly emits
-                // variations on SHIFT as a workaround for an issue with
-                // normalization under X11: <https://github.com/wezterm/wezterm/issues/1906>.
-                // Until that is resolved, we need to keep emitting both variants.
+                // variations on SHIFT for compatibility.
+                // We need to keep emitting both variants.
                 //
                 // In order for the DisableDefaultAssignment behavior to work with the
                 // least surprises, and for these normalization related workarounds
