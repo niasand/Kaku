@@ -17,26 +17,11 @@ struct Theme {
 
 static THEME_CACHE: Mutex<Option<(usize, Theme)>> = Mutex::new(None);
 
-fn to_color(c: SrgbaTuple) -> Color {
-    let (r, g, b, _) = c.to_srgb_u8();
-    Color::Rgb(r, g, b)
-}
-
-fn blend(base: SrgbaTuple, overlay: SrgbaTuple, amount: f32) -> SrgbaTuple {
-    let amount = amount.clamp(0.0, 1.0);
-    SrgbaTuple(
-        base.0 + (overlay.0 - base.0) * amount,
-        base.1 + (overlay.1 - base.1) * amount,
-        base.2 + (overlay.2 - base.2) * amount,
-        1.0,
-    )
-}
-
 fn theme_from_palette(palette: &crate::kaku_theme::ThemePalette) -> Theme {
     // Derive panel from bg+text blend so popups have enough contrast vs the
     // Preserve the existing background formula regardless of external tool integrations.
     let panel_blend = if palette.is_light { 0.05 } else { 0.08 };
-    let panel = blend(palette.bg, palette.text, panel_blend);
+    let panel = crate::kaku_theme::blend(palette.bg, palette.text, panel_blend);
 
     Theme {
         primary: to_color(palette.primary),

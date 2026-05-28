@@ -6,7 +6,7 @@ use crate::frontend::{front_end, refresh_fast_config_snapshot, try_front_end};
 use crate::inputmap::InputMap;
 use crate::overlay::launcher::LauncherTabEntry;
 use crate::overlay::{
-    confirm_close_pane, confirm_close_tab, confirm_quit_program, launcher, start_overlay,
+    confirm_close_pane, confirm_close_tab, launcher, start_overlay,
     start_overlay_pane, CopyModeParams, CopyOverlay, LauncherArgs, LauncherFlags,
     QuickSelectOverlay,
 };
@@ -37,7 +37,7 @@ use config::keyassignment::{
 use config::window::WindowLevel;
 use config::{
     configuration, AudibleBell, ConfigHandle, Dimension, DimensionContext, FrontEndSelection,
-    GeometryOrigin, GuiPosition, TermConfig, WindowCloseConfirmation,
+    GeometryOrigin, GuiPosition, TermConfig,
 };
 use lfucache::*;
 use mlua::{FromLua, LuaSerdeExt, UserData, UserDataFields};

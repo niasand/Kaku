@@ -44,7 +44,7 @@ fn opaque(color: SrgbaTuple) -> SrgbaTuple {
     SrgbaTuple(color.0, color.1, color.2, 1.0)
 }
 
-fn blend(base: SrgbaTuple, overlay: SrgbaTuple, amount: f32) -> SrgbaTuple {
+pub(crate) fn blend(base: SrgbaTuple, overlay: SrgbaTuple, amount: f32) -> SrgbaTuple {
     let amount = amount.clamp(0.0, 1.0);
     SrgbaTuple(
         base.0 + (overlay.0 - base.0) * amount,

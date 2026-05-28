@@ -3,11 +3,9 @@ use crate::TermWindow;
 use config::keyassignment::{ClipboardCopyDestination, ClipboardPasteSource};
 use mux::pane::Pane;
 use smol::Timer;
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
-use wezterm_toast_notification::persistent_toast_notification;
 use window::{Clipboard, ClipboardData, WindowOps};
 
 impl TermWindow {
