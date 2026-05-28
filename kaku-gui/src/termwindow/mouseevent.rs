@@ -924,7 +924,7 @@ impl super::TermWindow {
     pub fn mouse_event_tab_bar(
         &mut self,
         item: TabBarItem,
-        ui_item: UIItem,
+        _ui_item: UIItem,
         event: MouseEvent,
         context: &dyn WindowOps,
     ) {

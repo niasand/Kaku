@@ -1,10 +1,12 @@
 // Retained suppressions for inherited WezTerm patterns in the rendering/mux layer.
 #![allow(clippy::collapsible_else_if)]
 #![allow(clippy::collapsible_if)]
+#![allow(clippy::const_static_lifetime)]
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::if_same_then_else)]
 #![allow(clippy::large_enum_variant)]
 #![allow(clippy::needless_return)]
+#![allow(clippy::redundant_field_names)]
 #![allow(clippy::single_match)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]

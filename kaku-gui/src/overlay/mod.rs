@@ -1,5 +1,4 @@
 use crate::termwindow::TermWindow;
-use anyhow::anyhow;
 use mux::pane::{Pane, PaneId};
 use mux::tab::{Tab, TabId};
 use mux::termwiztermtab::{allocate, TermWizTerminal};
@@ -38,7 +37,9 @@ pub mod quickselect;
 
 #[cfg(not(target_os = "macos"))]
 pub use confirm_close_pane::confirm_close_window;
-pub use confirm_close_pane::{confirm_close_pane, confirm_close_tab, confirm_quit_program};
+pub use confirm_close_pane::{confirm_close_pane, confirm_close_tab};
+#[allow(dead_code)]
+pub use confirm_close_pane::confirm_quit_program;
 pub use copy::{CopyModeParams, CopyOverlay};
 pub use launcher::{launcher, LauncherArgs, LauncherFlags};
 pub use quickselect::QuickSelectOverlay;
