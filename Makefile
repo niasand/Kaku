@@ -9,11 +9,9 @@ test:
 	cargo nextest run --locked -p wezterm-escape-parser # no_std by default
 
 check:
-	cargo check --locked
+	cargo check --locked -p kaku -p kaku-gui
+	cargo clippy --locked -p kaku -p kaku-gui -- -D warnings
 	cargo check --locked -p wezterm-escape-parser
-	cargo check --locked -p wezterm-cell
-	cargo check --locked -p wezterm-surface
-	cargo check --locked -p wezterm-ssh
 
 app:
 	PROFILE=debug ./scripts/build.sh --app-only 2>&1 | sed '/ranlib: warning:.*has no symbols/d'; exit $${PIPESTATUS[0]}

@@ -1,3 +1,6 @@
+//! Clipboard integration: copy/paste between terminal and system clipboard,
+//! toast notifications, and dropped-file path quoting.
+
 use crate::termwindow::TermWindowNotif;
 use crate::TermWindow;
 use config::keyassignment::{ClipboardCopyDestination, ClipboardPasteSource};
@@ -203,5 +206,55 @@ fn quote_path_for_clipboard_paste(
         config::DroppedFileQuoting::Windows | config::DroppedFileQuoting::WindowsAlwaysQuoted => {
             quote_dropped_files.escape(path.as_ref())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use config::DroppedFileQuoting;
+    use std::path::PathBuf;
+
+    #[test]
+    fn format_dropped_paths_spaces_only_quotes_spaces() {
+        let paths = vec![PathBuf::from("/path/with spaces/file.txt")];
+        let result = format_dropped_paths(paths, DroppedFileQuoting::SpacesOnly);
+        assert!(result.contains("'/path/with spaces/file.txt'") || result.contains("\"/path/with spaces/file.txt\""));
+    }
+
+    #[test]
+    fn format_dropped_paths_no_spaces_unchanged() {
+        let paths = vec![PathBuf::from("/path/to/file.txt")];
+        let result = format_dropped_paths(paths.clone(), DroppedFileQuoting::None);
+        assert!(result.contains("/path/to/file.txt"));
+    }
+
+    #[test]
+    fn format_dropped_paths_trailing_space() {
+        let paths = vec![PathBuf::from("/a.txt")];
+        let result = format_dropped_paths(paths, DroppedFileQuoting::None);
+        assert!(result.ends_with(" "), "trailing space for shell ready-to-append");
+    }
+
+    #[test]
+    fn data_to_paste_string_text() {
+        let result = data_to_paste_string(ClipboardData::Text("hello".into()), DroppedFileQuoting::None);
+        assert_eq!(result, Some("hello".to_string()));
+    }
+
+    #[test]
+    fn data_to_paste_string_image_returns_none() {
+        use window::ImageData;
+        let result = data_to_paste_string(
+            ClipboardData::Image(ImageData::new(vec![1, 2, 3], 1, 1)),
+            DroppedFileQuoting::None,
+        );
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn data_to_paste_string_empty_files_returns_none() {
+        let result = data_to_paste_string(ClipboardData::Files(vec![]), DroppedFileQuoting::None);
+        assert!(result.is_none());
     }
 }

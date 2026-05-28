@@ -1,4 +1,8 @@
 #![allow(clippy::range_plus_one)]
+//! Core terminal window management: rendering, input routing, tab/pane lifecycle,
+//! and overlay dispatch. This module owns the main TermWindow struct which coordinates
+//! between the GPU render pipeline, user input, and the mux layer.
+
 use super::renderstate::*;
 use super::utilsprites::RenderMetrics;
 use crate::colorease::ColorEase;

@@ -1,3 +1,5 @@
+//! Terminal text selection: extend, clear, and coordinate mapping for mouse-driven selection.
+
 use crate::selection::{Selection, SelectionCoordinate, SelectionMode, SelectionRange, SelectionX};
 use ::window::WindowOps;
 use mux::pane::{Pane, PaneId};
