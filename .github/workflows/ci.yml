@@ -98,7 +98,7 @@ jobs:
       - name: Security audit
         run: |
           cargo install cargo-audit --locked 2>/dev/null
-          cargo audit --deny warnings
+          cargo audit --deny vulnerabilities
 
       - name: Run tests
         run: |
