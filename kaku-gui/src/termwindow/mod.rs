@@ -5792,7 +5792,10 @@ impl Drop for TermWindow {
 
 #[cfg(test)]
 mod tests {
-    use super::{bell_notification_message, recover_lock, InputBroadcastMode, RenderableDimensions, TermWindow};
+    use super::{
+        bell_notification_message, recover_lock, InputBroadcastMode, RenderableDimensions,
+        TermWindow,
+    };
     use mux::tab::TabId;
     use std::sync::Mutex;
     use wezterm_term::StableRowIndex;
