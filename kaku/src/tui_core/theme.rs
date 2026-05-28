@@ -17,6 +17,11 @@ struct Theme {
 
 static THEME_CACHE: Mutex<Option<(usize, Theme)>> = Mutex::new(None);
 
+fn to_color(c: SrgbaTuple) -> Color {
+    let (r, g, b, _) = c.to_srgb_u8();
+    Color::Rgb(r, g, b)
+}
+
 fn theme_from_palette(palette: &crate::kaku_theme::ThemePalette) -> Theme {
     // Derive panel from bg+text blend so popups have enough contrast vs the
     // Preserve the existing background formula regardless of external tool integrations.
