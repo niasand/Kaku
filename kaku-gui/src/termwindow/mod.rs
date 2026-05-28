@@ -6,9 +6,8 @@ use crate::frontend::{front_end, refresh_fast_config_snapshot, try_front_end};
 use crate::inputmap::InputMap;
 use crate::overlay::launcher::LauncherTabEntry;
 use crate::overlay::{
-    confirm_close_pane, confirm_close_tab, launcher, start_overlay,
-    start_overlay_pane, CopyModeParams, CopyOverlay, LauncherArgs, LauncherFlags,
-    QuickSelectOverlay,
+    confirm_close_pane, confirm_close_tab, launcher, start_overlay, start_overlay_pane,
+    CopyModeParams, CopyOverlay, LauncherArgs, LauncherFlags, QuickSelectOverlay,
 };
 use crate::resize_increment_calculator::ResizeIncrementCalculator;
 use crate::scripting::guiwin::GuiWin;

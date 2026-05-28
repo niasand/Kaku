@@ -389,7 +389,8 @@ impl FrameState {
             for _ in 0..BLACK_SIZE * BLACK_SIZE {
                 data.extend_from_slice(&[0, 0, 0, 0xff]);
             }
-            BlobManager::store(&data).expect("Failed to store black texture data; cannot initialize glyph cache")
+            BlobManager::store(&data)
+                .expect("Failed to store black texture data; cannot initialize glyph cache")
         });
 
         Self {
