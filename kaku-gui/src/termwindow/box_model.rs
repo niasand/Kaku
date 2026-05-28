@@ -604,7 +604,11 @@ impl super::TermWindow {
 
         match &element.content {
             ElementContent::Text(s) => {
-                let window = self.window.as_ref().expect("box_model layout requires window").clone();
+                let window = self
+                    .window
+                    .as_ref()
+                    .expect("box_model layout requires window")
+                    .clone();
                 let direction = wezterm_bidi::Direction::LeftToRight;
                 let infos = element.font.shape(
                     &s,

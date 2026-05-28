@@ -65,7 +65,10 @@ where
         Some(w) => w,
         None => {
             log::warn!("start_overlay: window not initialized");
-            return (tw_tab, Box::pin(async { Err(anyhow::anyhow!("window not initialized")) }));
+            return (
+                tw_tab,
+                Box::pin(async { Err(anyhow::anyhow!("window not initialized")) }),
+            );
         }
     };
 
@@ -109,7 +112,10 @@ where
         Some(w) => w,
         None => {
             log::warn!("start_overlay_pane: window not initialized");
-            return (tw_tab, Box::pin(async { Err(anyhow::anyhow!("window not initialized")) }));
+            return (
+                tw_tab,
+                Box::pin(async { Err(anyhow::anyhow!("window not initialized")) }),
+            );
         }
     };
 

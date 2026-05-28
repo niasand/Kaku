@@ -273,7 +273,10 @@ impl QuickSelectOverlay {
 
         let pattern = Pattern::Regex(pattern);
 
-        let window = term_window.window.clone().expect("quickselect requires initialized window");
+        let window = term_window
+            .window
+            .clone()
+            .expect("quickselect requires initialized window");
         let mut renderer = QuickSelectRenderable {
             delegate: Arc::clone(pane),
             pattern,

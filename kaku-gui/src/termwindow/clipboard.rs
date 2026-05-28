@@ -219,7 +219,10 @@ mod tests {
     fn format_dropped_paths_spaces_only_quotes_spaces() {
         let paths = vec![PathBuf::from("/path/with spaces/file.txt")];
         let result = format_dropped_paths(paths, DroppedFileQuoting::SpacesOnly);
-        assert!(result.contains("'/path/with spaces/file.txt'") || result.contains("\"/path/with spaces/file.txt\""));
+        assert!(
+            result.contains("'/path/with spaces/file.txt'")
+                || result.contains("\"/path/with spaces/file.txt\"")
+        );
     }
 
     #[test]
@@ -233,12 +236,18 @@ mod tests {
     fn format_dropped_paths_trailing_space() {
         let paths = vec![PathBuf::from("/a.txt")];
         let result = format_dropped_paths(paths, DroppedFileQuoting::None);
-        assert!(result.ends_with(" "), "trailing space for shell ready-to-append");
+        assert!(
+            result.ends_with(" "),
+            "trailing space for shell ready-to-append"
+        );
     }
 
     #[test]
     fn data_to_paste_string_text() {
-        let result = data_to_paste_string(ClipboardData::Text("hello".into()), DroppedFileQuoting::None);
+        let result = data_to_paste_string(
+            ClipboardData::Text("hello".into()),
+            DroppedFileQuoting::None,
+        );
         assert_eq!(result, Some("hello".to_string()));
     }
 
