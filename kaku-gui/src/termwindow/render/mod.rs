@@ -305,7 +305,7 @@ impl crate::TermWindow {
         let mut quad = layers.allocate(layer_num)?;
         let left_offset = self.dimensions.pixel_width as f32 / 2.;
         let top_offset = self.dimensions.pixel_height as f32 / 2.;
-        let gl_state = self.render_state.as_ref().unwrap();
+        let gl_state = self.gl_state();
         quad.set_position(
             rect.min_x() as f32 - left_offset,
             rect.min_y() as f32 - top_offset,
@@ -331,7 +331,7 @@ impl crate::TermWindow {
     ) -> anyhow::Result<QuadImpl<'a>> {
         let left_offset = self.dimensions.pixel_width as f32 / 2.;
         let top_offset = self.dimensions.pixel_height as f32 / 2.;
-        let gl_state = self.render_state.as_ref().unwrap();
+        let gl_state = self.gl_state();
         let sprite = gl_state
             .glyph_cache
             .borrow_mut()

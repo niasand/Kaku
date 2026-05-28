@@ -597,7 +597,7 @@ impl crate::TermWindow {
                 },
                 bounds: euclid::rect(bounds_left, 0., bounds_width, tab_bar_height),
                 metrics: &metrics,
-                gl_state: self.render_state.as_ref().unwrap(),
+                gl_state: self.gl_state(),
                 zindex: 10,
             },
             &tabs,
@@ -638,7 +638,7 @@ impl crate::TermWindow {
 
         let ui_items = computed.ui_items();
 
-        let gl_state = self.render_state.as_ref().unwrap();
+        let gl_state = self.gl_state();
         let render_result = self.render_element(computed, gl_state, None);
         // `computed` and `gl_state` borrows end here; NLL releases them before the restore below.
 

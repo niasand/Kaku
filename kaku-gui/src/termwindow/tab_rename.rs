@@ -825,7 +825,7 @@ impl TabRenameModal {
                 },
                 bounds: euclid::rect(x, y, desired_width, height),
                 metrics: &metrics,
-                gl_state: term_window.render_state.as_ref().unwrap(),
+                gl_state: term_window.gl_state(),
                 zindex: 120,
             },
             &element,

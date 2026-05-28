@@ -146,7 +146,7 @@ impl PaneSelector {
                             * term_window.render_metrics.cell_size.height as f32,
                     ),
                     metrics: &metrics,
-                    gl_state: term_window.render_state.as_ref().unwrap(),
+                    gl_state: term_window.gl_state(),
                     zindex: 100,
                 },
                 &element,

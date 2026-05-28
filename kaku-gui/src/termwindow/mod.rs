@@ -1245,6 +1245,20 @@ impl TermWindow {
 }
 
 impl TermWindow {
+    /// Returns a reference to the render state.
+    /// Panics with a clear message if render_state was never initialized.
+    pub fn gl_state(&self) -> &RenderState {
+        self.render_state
+            .as_ref()
+            .expect("render_state not initialized — rendering before GPU setup?")
+    }
+
+    /// Returns a mutable reference to the render state.
+    pub fn gl_state_mut(&mut self) -> &mut RenderState {
+        self.render_state
+            .as_mut()
+            .expect("render_state not initialized — rendering before GPU setup?")
+    }
     fn arm_layout_sticky_fullscreen(&mut self) {
         if self.config.tab_bar_at_bottom {
             return;

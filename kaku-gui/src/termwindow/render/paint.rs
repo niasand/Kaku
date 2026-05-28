@@ -117,7 +117,7 @@ impl crate::TermWindow {
         const MAX_PAINT_RETRIES: usize = 8;
         'pass: for pass in 0..MAX_PAINT_RETRIES {
             match self.paint_pass() {
-                Ok(_) => match self.render_state.as_mut().unwrap().allocated_more_quads() {
+                Ok(_) => match self.gl_state_mut().allocated_more_quads() {
                     Ok(allocated) => {
                         if !allocated {
                             break 'pass;
@@ -248,7 +248,7 @@ impl crate::TermWindow {
             for computed in modal.computed_element(self)?.iter() {
                 let mut ui_items = computed.ui_items();
 
-                let gl_state = self.render_state.as_ref().unwrap();
+                let gl_state = self.gl_state();
                 self.render_element(&computed, gl_state, None)?;
 
                 self.ui_items.append(&mut ui_items);
@@ -260,7 +260,7 @@ impl crate::TermWindow {
 
     pub fn paint_pass(&mut self) -> anyhow::Result<()> {
         {
-            let gl_state = self.render_state.as_ref().unwrap();
+            let gl_state = self.gl_state();
             for layer in gl_state.layers.borrow().iter() {
                 layer.clear_quad_allocation();
             }
@@ -278,7 +278,7 @@ impl crate::TermWindow {
             window_is_transparent && !force_opaque_window_background;
 
         let start = Instant::now();
-        let gl_state = self.render_state.as_ref().unwrap();
+        let gl_state = self.gl_state();
         let layer = gl_state
             .layer_for_zindex(0)
             .context("layer_for_zindex(0)")?;
@@ -771,13 +771,13 @@ impl crate::TermWindow {
                 },
                 bounds: euclid::rect(right_x, bottom_y, approx_width, toast_height),
                 metrics: &metrics,
-                gl_state: self.render_state.as_ref().unwrap(),
+                gl_state: self.gl_state(),
                 zindex: 120,
             },
             &element,
         )?;
 
-        let gl_state = self.render_state.as_ref().unwrap();
+        let gl_state = self.gl_state();
         self.render_element(&computed, gl_state, None)?;
 
         // Keep redrawing during fade-out

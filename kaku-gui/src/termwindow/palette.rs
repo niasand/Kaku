@@ -782,7 +782,7 @@ impl CommandPalette {
                 },
                 bounds: euclid::rect(bounds.x, bounds.y, bounds.width, bounds.height),
                 metrics: &metrics,
-                gl_state: term_window.render_state.as_ref().unwrap(),
+                gl_state: term_window.gl_state(),
                 zindex: 100,
             },
             &element,

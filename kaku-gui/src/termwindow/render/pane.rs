@@ -29,7 +29,7 @@ impl crate::TermWindow {
         let computed = self.build_pane(pos)?;
         let mut ui_items = computed.ui_items();
         self.ui_items.append(&mut ui_items);
-        let gl_state = self.render_state.as_ref().unwrap();
+        let gl_state = self.gl_state();
         self.render_element(&computed, gl_state, None)
     }
 
@@ -213,7 +213,7 @@ impl crate::TermWindow {
         let current_viewport = self.effective_viewport(&pos.pane);
         let dims = pos.pane.get_dimensions();
 
-        let gl_state = self.render_state.as_ref().unwrap();
+        let gl_state = self.gl_state();
 
         let cursor_border_color = palette.cursor_border.to_linear();
         let foreground = palette.foreground.to_linear();

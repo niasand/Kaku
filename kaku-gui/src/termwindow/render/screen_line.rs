@@ -58,7 +58,7 @@ impl crate::TermWindow {
             });
         }
 
-        let gl_state = self.render_state.as_ref().unwrap();
+        let gl_state = self.gl_state();
 
         let num_cols = params.dims.cols;
 
@@ -773,7 +773,7 @@ impl crate::TermWindow {
             params.line.cluster(None)
         };
 
-        let gl_state = self.render_state.as_ref().unwrap();
+        let gl_state = self.gl_state();
         let mut shaped = vec![];
         let mut last_style = None;
         let mut x_pos = 0.;

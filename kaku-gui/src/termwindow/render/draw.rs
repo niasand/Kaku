@@ -21,7 +21,7 @@ impl crate::TermWindow {
         use crate::termwindow::webgpu::WebGpuTexture;
 
         let webgpu = self.webgpu.as_mut().unwrap();
-        let render_state = self.render_state.as_ref().unwrap();
+        let render_state = self.gl_state();
 
         let output = webgpu.surface.get_current_texture()?;
         let view = output
@@ -152,7 +152,7 @@ impl crate::TermWindow {
     fn call_draw_glium(&mut self, frame: &mut glium::Frame) -> anyhow::Result<()> {
         use window::glium::texture::SrgbTexture2d;
 
-        let gl_state = self.render_state.as_ref().unwrap();
+        let gl_state = self.gl_state();
         let tex = gl_state.glyph_cache.borrow().atlas.texture();
         let tex = tex.downcast_ref::<SrgbTexture2d>().unwrap();
 
