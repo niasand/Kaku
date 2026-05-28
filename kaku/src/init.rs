@@ -175,7 +175,7 @@ exit 127
             }
         }
 
-        if let Some(candidate) = [
+        [
             PathBuf::from("/Applications/Kaku.app/Contents/MacOS/kaku"),
             config::HOME_DIR
                 .join("Applications")
@@ -186,11 +186,7 @@ exit 127
         ]
         .into_iter()
         .find(|c| is_executable_file(c))
-        {
-            return Some(candidate);
-        }
-
-        None
+        .cloned()
     }
 
     fn is_executable_file(path: &Path) -> bool {
