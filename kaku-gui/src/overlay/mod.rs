@@ -37,9 +37,9 @@ pub mod quickselect;
 
 #[cfg(not(target_os = "macos"))]
 pub use confirm_close_pane::confirm_close_window;
-pub use confirm_close_pane::{confirm_close_pane, confirm_close_tab};
 #[allow(dead_code)]
 pub use confirm_close_pane::confirm_quit_program;
+pub use confirm_close_pane::{confirm_close_pane, confirm_close_tab};
 pub use copy::{CopyModeParams, CopyOverlay};
 pub use launcher::{launcher, LauncherArgs, LauncherFlags};
 pub use quickselect::QuickSelectOverlay;
