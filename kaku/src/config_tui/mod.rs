@@ -132,8 +132,9 @@ fn run_app(
                 KeyCode::Right => {
                     app.edit_cursor_right();
                 }
-                KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL)
-                    && !key.modifiers.contains(KeyModifiers::SUPER) =>
+                KeyCode::Char(c)
+                    if !key.modifiers.contains(KeyModifiers::CONTROL)
+                        && !key.modifiers.contains(KeyModifiers::SUPER) =>
                 {
                     app.edit_insert(c);
                 }
