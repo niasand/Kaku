@@ -175,7 +175,7 @@ exit 127
             }
         }
 
-        for candidate in [
+        if let Some(candidate) = [
             PathBuf::from("/Applications/Kaku.app/Contents/MacOS/kaku"),
             config::HOME_DIR
                 .join("Applications")
@@ -183,10 +183,11 @@ exit 127
                 .join("Contents")
                 .join("MacOS")
                 .join("kaku"),
-        ] {
-            if is_executable_file(&candidate) {
-                return Some(candidate);
-            }
+        ]
+        .into_iter()
+        .find(|c| is_executable_file(c))
+        {
+            return Some(candidate);
         }
 
         None

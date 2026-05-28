@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use wezterm_term::color::SrgbaTuple;
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 struct Theme {
     primary: Color,
     secondary: Color,
@@ -67,6 +68,7 @@ pub fn primary() -> Color {
     current_theme().primary
 }
 
+#[allow(dead_code)]
 pub fn success() -> Color {
     current_theme().secondary
 }
@@ -75,6 +77,7 @@ pub fn accent() -> Color {
     current_theme().accent
 }
 
+#[allow(dead_code)]
 pub fn red() -> Color {
     current_theme().error
 }

@@ -54,6 +54,7 @@ pub struct Opt {
 }
 
 #[derive(Debug, Clone, ValueEnum)]
+#[allow(clippy::enum_variant_names)]
 enum Shell {
     Bash,
     Elvish,
@@ -243,6 +244,7 @@ fn main() {
     Mux::shutdown();
 }
 
+#[allow(dead_code)]
 fn init_config(opts: &Opt) -> anyhow::Result<ConfigHandle> {
     config::common_init(
         opts.config_file.as_ref(),
@@ -427,17 +429,13 @@ fn select_main_menu_command() -> anyhow::Result<Option<SubCommand>> {
     loop {
         match event::read().context("read main menu input")? {
             Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
-                KeyCode::Up | KeyCode::Char('k') => {
-                    if selected > 0 {
-                        selected -= 1;
-                        render_menu(selected, GREEN, PURPLE_BOLD, GRAY, RESET)?;
-                    }
+                KeyCode::Up | KeyCode::Char('k') if selected > 0 => {
+                    selected -= 1;
+                    render_menu(selected, GREEN, PURPLE_BOLD, GRAY, RESET)?;
                 }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    if selected + 1 < MENU_ITEMS.len() {
-                        selected += 1;
-                        render_menu(selected, GREEN, PURPLE_BOLD, GRAY, RESET)?;
-                    }
+                KeyCode::Down | KeyCode::Char('j') if selected + 1 < MENU_ITEMS.len() => {
+                    selected += 1;
+                    render_menu(selected, GREEN, PURPLE_BOLD, GRAY, RESET)?;
                 }
                 KeyCode::Enter => return Ok(Some(to_subcommand(MENU_ITEMS[selected].2))),
                 KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -494,7 +492,7 @@ fn delegate_to_gui(saver: UmaskSaver) -> anyhow::Result<()> {
             portable_pty::unix::close_random_fds();
         }
         let res = cmd.exec();
-        return Err(anyhow::anyhow!("failed to exec {cmd:?}: {res:?}"));
+        Err(anyhow::anyhow!("failed to exec {cmd:?}: {res:?}"))
     }
 }
 

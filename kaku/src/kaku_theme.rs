@@ -269,7 +269,7 @@ fn color_scheme_selection_from_content(content: &str) -> Option<ColorSchemeSelec
     content
         .lines()
         .filter_map(parse_color_scheme_selection_line)
-        .last()
+        .next_back()
 }
 
 /// Returns true when the user's color scheme intent is Auto.

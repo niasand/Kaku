@@ -3,6 +3,7 @@ use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+#[allow(dead_code)]
 pub fn is_jsonc_path(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
@@ -12,6 +13,7 @@ pub fn is_jsonc_path(path: &Path) -> bool {
 /// Parses JSON or JSONC text.
 ///
 /// This supports comments and trailing commas, then returns standard JSON data.
+#[allow(dead_code)]
 pub fn parse_json_or_jsonc(input: &str) -> serde_json::Result<serde_json::Value> {
     serde_json::from_str(input).or_else(|_| {
         let stripped = strip_jsonc_comments(input);
@@ -20,6 +22,7 @@ pub fn parse_json_or_jsonc(input: &str) -> serde_json::Result<serde_json::Value>
     })
 }
 
+#[allow(dead_code)]
 pub fn write_atomic(path: &Path, contents: &[u8]) -> anyhow::Result<()> {
     let parent = path
         .parent()
@@ -169,6 +172,7 @@ fn run_editor_command(program: &str, args: &[String], path: &Path) -> std::io::R
 /// Strips JSONC (JSON with Comments) comments from the input string.
 /// Handles both single-line (//) and multi-line (/* */) comments,
 /// while preserving comments inside string literals.
+#[allow(dead_code)]
 pub fn strip_jsonc_comments(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();
@@ -236,6 +240,7 @@ pub fn strip_jsonc_comments(input: &str) -> String {
     out
 }
 
+#[allow(dead_code)]
 fn strip_jsonc_trailing_commas(input: &str) -> String {
     let chars: Vec<char> = input.chars().collect();
     let mut out = String::with_capacity(input.len());

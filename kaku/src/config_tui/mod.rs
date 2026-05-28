@@ -77,10 +77,7 @@ fn run_app(
             return Err(e.into());
         }
 
-        let event = match event::read() {
-            Ok(e) => e,
-            Err(e) => return Err(e.into()),
-        };
+        let event = event::read()?;
 
         let Event::Key(key) = event else { continue };
         if key.kind != KeyEventKind::Press {
@@ -105,11 +102,7 @@ fn run_app(
                 NormalModeAction::OpenEditor => {
                     save_with_feedback(terminal, app)?;
                     let config_path = app.config_path();
-                    if let Err(e) =
-                        with_terminal_suspended(terminal, || open_config_in_editor(&config_path))
-                    {
-                        return Err(e);
-                    }
+                    with_terminal_suspended(terminal, || open_config_in_editor(&config_path))?;
                     return Ok(());
                 }
                 NormalModeAction::MoveUp => {
@@ -139,13 +132,10 @@ fn run_app(
                 KeyCode::Right => {
                     app.edit_cursor_right();
                 }
-                KeyCode::Char(c) => {
-                    // Ignore characters with Ctrl/Cmd modifiers to avoid inserting escape sequences
-                    if !key.modifiers.contains(KeyModifiers::CONTROL)
-                        && !key.modifiers.contains(KeyModifiers::SUPER)
-                    {
-                        app.edit_insert(c);
-                    }
+                KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL)
+                    && !key.modifiers.contains(KeyModifiers::SUPER) =>
+                {
+                    app.edit_insert(c);
                 }
                 _ => {}
             },
@@ -1409,7 +1399,7 @@ impl App {
 }
 
 fn open_config_in_editor(config_path: &Path) -> anyhow::Result<()> {
-    open_path_in_editor(&config_path)
+    open_path_in_editor(config_path)
 }
 
 /// Send an OSC 1337 SetUserVar to signal kaku-gui that config has changed.
