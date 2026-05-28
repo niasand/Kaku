@@ -20,8 +20,8 @@ impl crate::TermWindow {
     fn call_draw_webgpu(&mut self) -> anyhow::Result<()> {
         use crate::termwindow::webgpu::WebGpuTexture;
 
+        let render_state = self.render_state.as_ref().expect("render_state not initialized for WebGPU draw");
         let webgpu = self.webgpu.as_mut().unwrap();
-        let render_state = self.gl_state();
 
         let output = webgpu.surface.get_current_texture()?;
         let view = output
