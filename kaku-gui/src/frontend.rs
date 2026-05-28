@@ -45,17 +45,23 @@ lazy_static::lazy_static! {
 }
 
 fn fast_config_snapshot() -> config::ConfigHandle {
-    if let Some(cfg) = FAST_CONFIG_SNAPSHOT.lock().unwrap().as_ref().cloned() {
-        return cfg;
+    if let Ok(mut guard) = FAST_CONFIG_SNAPSHOT.lock() {
+        if let Some(cfg) = guard.as_ref().cloned() {
+            return cfg;
+        }
+        let cfg = config::configuration();
+        guard.replace(cfg.clone());
+        cfg
+    } else {
+        config::configuration()
     }
-    let cfg = config::configuration();
-    FAST_CONFIG_SNAPSHOT.lock().unwrap().replace(cfg.clone());
-    cfg
 }
 
 pub(crate) fn refresh_fast_config_snapshot() {
     let cfg = config::configuration();
-    FAST_CONFIG_SNAPSHOT.lock().unwrap().replace(cfg);
+    if let Ok(mut guard) = FAST_CONFIG_SNAPSHOT.lock() {
+        guard.replace(cfg);
+    }
 }
 
 fn resolve_bundled_kaku_bin() -> anyhow::Result<PathBuf> {
@@ -879,7 +885,7 @@ impl GuiFrontEnd {
             // and activate it
             if self.is_switching_workspace() {
                 promise.ok(());
-                return promise.get_future().unwrap();
+                return promise.get_future().expect("get_future after ok() should not fail");
             }
             for workspace in mux.iter_workspaces() {
                 if !mux.is_workspace_empty(&workspace) {
@@ -930,7 +936,7 @@ impl GuiFrontEnd {
         log::trace!("reconcile: windows -> {:?}", windows);
         *self.known_windows.borrow_mut() = windows;
 
-        let future = promise.get_future().unwrap();
+        let future = promise.get_future().expect("get_future after ok() should not fail");
 
         // then spawn any new windows that are needed
         promise::spawn::spawn(async move {

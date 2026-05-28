@@ -389,7 +389,7 @@ impl FrameState {
             for _ in 0..BLACK_SIZE * BLACK_SIZE {
                 data.extend_from_slice(&[0, 0, 0, 0xff]);
             }
-            BlobManager::store(&data).unwrap()
+            BlobManager::store(&data).context("Failed to store black texture data")?
         });
 
         Self {
@@ -1136,7 +1136,7 @@ impl GlyphCache {
     }
 
     pub fn cached_color(&mut self, color: RgbColor, alpha: f32) -> anyhow::Result<Sprite> {
-        let key = (color, NotNan::new(alpha).unwrap());
+        let key = (color, NotNan::new(alpha).context("alpha is NaN in cached_color")?);
 
         if let Some(s) = self.color.get(&key) {
             return Ok(s.clone());

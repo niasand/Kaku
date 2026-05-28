@@ -54,7 +54,13 @@ fn current_theme() -> Theme {
     let config = configuration();
     let generation = config.generation();
 
-    let mut cached = THEME_CACHE.lock().unwrap();
+    let mut cached = match THEME_CACHE.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            log::warn!("THEME_CACHE lock poisoned, recovering: {e}");
+            e.into_inner()
+        }
+    };
     if let Some((cached_generation, theme)) = *cached {
         if cached_generation == generation {
             return theme;

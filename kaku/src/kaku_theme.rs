@@ -295,7 +295,13 @@ fn config_file_has_auto_color_scheme(_config: &ConfigHandle) -> bool {
 #[cfg(target_os = "macos")]
 fn is_macos_dark_mode() -> bool {
     let now = Instant::now();
-    let mut cache = APPEARANCE_CACHE.lock().unwrap();
+    let mut cache = match APPEARANCE_CACHE.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            log::warn!("APPEARANCE_CACHE lock poisoned, recovering: {e}");
+            e.into_inner()
+        }
+    };
     if let Some((checked_at, is_dark)) = *cache {
         if now.duration_since(checked_at) < APPEARANCE_CACHE_TTL {
             return is_dark;
@@ -398,7 +404,13 @@ fn current_theme() -> CachedTheme {
     let config = configuration();
     let generation = config.generation();
 
-    let mut cached = THEME_CACHE.lock().unwrap();
+    let mut cached = match THEME_CACHE.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            log::warn!("THEME_CACHE lock poisoned, recovering: {e}");
+            e.into_inner()
+        }
+    };
     if let Some((cached_generation, theme)) = *cached {
         let current_appearance_is_dark = if theme.appearance_sensitive {
             Some(is_macos_dark_mode())

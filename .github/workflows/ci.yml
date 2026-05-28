@@ -95,6 +95,11 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@f092c064826410a38929a5791d2c0225b94432fe # nextest
 
+      - name: Security audit
+        run: |
+          cargo install cargo-audit --locked 2>/dev/null
+          cargo audit
+
       - name: Run tests
         run: |
           cargo nextest run --locked -E 'not test(shapecache::test::ligatures_jetbrains)'
@@ -145,6 +150,7 @@ jobs:
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
           toolchain: stable
+          components: clippy
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
@@ -160,6 +166,9 @@ jobs:
 
       - name: Check key crates
         run: cargo check --locked -p kaku -p kaku-gui
+
+      - name: Clippy
+        run: cargo clippy --locked -p kaku -p kaku-gui -- -D warnings
 
   build-arm64:
     name: Build (arm64)
