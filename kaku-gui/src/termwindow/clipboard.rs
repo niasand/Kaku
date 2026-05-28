@@ -253,9 +253,8 @@ mod tests {
 
     #[test]
     fn data_to_paste_string_image_returns_none() {
-        use window::ImageData;
         let result = data_to_paste_string(
-            ClipboardData::Image(ImageData::new(vec![1, 2, 3], 1, 1)),
+            ClipboardData::Image(std::path::PathBuf::from("/tmp/fake.png")),
             DroppedFileQuoting::None,
         );
         assert!(result.is_none());

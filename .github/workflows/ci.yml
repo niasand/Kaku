@@ -176,7 +176,8 @@ jobs:
       - name: Clippy
         run: |
           # Clippy only our crates — inherited WezTerm crates have legacy lint issues
-          cargo clippy --locked -p kaku -p kaku-gui -- -D warnings
+          # --no-deps prevents linting transitive dependencies (wezterm-bidi etc.)
+          cargo clippy --locked --no-deps -p kaku -p kaku-gui -- -D warnings
 
   build-arm64:
     name: Build (arm64)
