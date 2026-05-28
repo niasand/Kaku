@@ -885,7 +885,9 @@ impl GuiFrontEnd {
             // and activate it
             if self.is_switching_workspace() {
                 promise.ok(());
-                return promise.get_future().expect("get_future after ok() should not fail");
+                return promise
+                    .get_future()
+                    .expect("get_future after ok() should not fail");
             }
             for workspace in mux.iter_workspaces() {
                 if !mux.is_workspace_empty(&workspace) {
@@ -936,7 +938,9 @@ impl GuiFrontEnd {
         log::trace!("reconcile: windows -> {:?}", windows);
         *self.known_windows.borrow_mut() = windows;
 
-        let future = promise.get_future().expect("get_future after ok() should not fail");
+        let future = promise
+            .get_future()
+            .expect("get_future after ok() should not fail");
 
         // then spawn any new windows that are needed
         promise::spawn::spawn(async move {

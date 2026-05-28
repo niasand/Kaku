@@ -1136,7 +1136,10 @@ impl GlyphCache {
     }
 
     pub fn cached_color(&mut self, color: RgbColor, alpha: f32) -> anyhow::Result<Sprite> {
-        let key = (color, NotNan::new(alpha).context("alpha is NaN in cached_color")?);
+        let key = (
+            color,
+            NotNan::new(alpha).context("alpha is NaN in cached_color")?,
+        );
 
         if let Some(s) = self.color.get(&key) {
             return Ok(s.clone());

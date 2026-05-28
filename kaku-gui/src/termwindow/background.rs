@@ -153,7 +153,10 @@ impl CachedGradient {
     }
 
     fn load(g: &Gradient, width: u32, height: u32) -> anyhow::Result<Arc<ImageData>> {
-        let mut cache = GRADIENT_CACHE.lock().unwrap_or_else(|e| { log::warn!("GRADIENT_CACHE poisoned, recovering"); e.into_inner() });
+        let mut cache = GRADIENT_CACHE.lock().unwrap_or_else(|e| {
+            log::warn!("GRADIENT_CACHE poisoned, recovering");
+            e.into_inner()
+        });
 
         if let Some(entry) = cache
             .iter_mut()
@@ -181,14 +184,20 @@ impl CachedGradient {
     }
 
     fn mark() {
-        let mut cache = GRADIENT_CACHE.lock().unwrap_or_else(|e| { log::warn!("GRADIENT_CACHE poisoned, recovering"); e.into_inner() });
+        let mut cache = GRADIENT_CACHE.lock().unwrap_or_else(|e| {
+            log::warn!("GRADIENT_CACHE poisoned, recovering");
+            e.into_inner()
+        });
         for entry in cache.iter_mut() {
             entry.marked = true;
         }
     }
 
     fn sweep() {
-        let mut cache = GRADIENT_CACHE.lock().unwrap_or_else(|e| { log::warn!("GRADIENT_CACHE poisoned, recovering"); e.into_inner() });
+        let mut cache = GRADIENT_CACHE.lock().unwrap_or_else(|e| {
+            log::warn!("GRADIENT_CACHE poisoned, recovering");
+            e.into_inner()
+        });
         cache.retain(|entry| !entry.marked);
     }
 }
@@ -205,7 +214,10 @@ impl CachedImage {
         let modified = std::fs::metadata(path)
             .and_then(|m| m.modified())
             .with_context(|| format!("getting metadata for {}", path))?;
-        let mut cache = IMAGE_CACHE.lock().unwrap_or_else(|e| { log::warn!("IMAGE_CACHE poisoned, recovering"); e.into_inner() });
+        let mut cache = IMAGE_CACHE.lock().unwrap_or_else(|e| {
+            log::warn!("IMAGE_CACHE poisoned, recovering");
+            e.into_inner()
+        });
         if let Some(cached) = cache.get_mut(path) {
             if cached.modified == modified && cached.speed == speed {
                 cached.marked = false;
@@ -239,14 +251,20 @@ impl CachedImage {
     }
 
     fn mark() {
-        let mut cache = IMAGE_CACHE.lock().unwrap_or_else(|e| { log::warn!("IMAGE_CACHE poisoned, recovering"); e.into_inner() });
+        let mut cache = IMAGE_CACHE.lock().unwrap_or_else(|e| {
+            log::warn!("IMAGE_CACHE poisoned, recovering");
+            e.into_inner()
+        });
         for entry in cache.values_mut() {
             entry.marked = true;
         }
     }
 
     fn sweep() {
-        let mut cache = IMAGE_CACHE.lock().unwrap_or_else(|e| { log::warn!("IMAGE_CACHE poisoned, recovering"); e.into_inner() });
+        let mut cache = IMAGE_CACHE.lock().unwrap_or_else(|e| {
+            log::warn!("IMAGE_CACHE poisoned, recovering");
+            e.into_inner()
+        });
         cache.retain(|k, entry| {
             if entry.marked {
                 log::trace!("Unloading {} from cache", k);
@@ -413,7 +431,10 @@ impl crate::TermWindow {
         bg_color: LinearRgba,
         top: StableRowIndex,
     ) -> anyhow::Result<bool> {
-        let gl_state = self.render_state.as_ref().context("render_state not initialized")?;
+        let gl_state = self
+            .render_state
+            .as_ref()
+            .context("render_state not initialized")?;
         let mut layer_idx = -127;
         let mut loaded_any = false;
         for layer in self.window_background.iter() {
