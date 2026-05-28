@@ -184,7 +184,7 @@ exit 127
                 .join("MacOS")
                 .join("kaku"),
         ]
-        .into_iter()
+        .iter()
         .find(|c| is_executable_file(c))
         .cloned()
     }
