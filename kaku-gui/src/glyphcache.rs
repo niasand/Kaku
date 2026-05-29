@@ -556,10 +556,10 @@ impl DecodedImage {
     }
 }
 
-/// A number of items here are HashMaps rather than LfuCaches;
-/// eviction is managed by recreating Self when the Atlas is filled
+/// Glyph cache with LFU eviction; other small HashMaps are bounded
+/// by the number of cursor shapes, block glyphs, or colors in use.
 pub struct GlyphCache {
-    glyph_cache: HashMap<GlyphKey, Rc<CachedGlyph>>,
+    glyph_cache: LfuCache<GlyphKey, Rc<CachedGlyph>>,
     pub atlas: Atlas,
     pub fonts: Rc<FontConfiguration>,
     pub image_cache: LfuCache<[u8; 32], DecodedImage>,
@@ -578,7 +578,12 @@ impl GlyphCache {
 
         Ok(Self {
             fonts: Rc::clone(fonts),
-            glyph_cache: HashMap::new(),
+            glyph_cache: LfuCache::new(
+                "glyph_cache.glyph_cache.hit.rate",
+                "glyph_cache.glyph_cache.miss.rate",
+                |config| config.glyph_cache_glyph_cache_size,
+                &fonts.config(),
+            ),
             image_cache: LfuCache::new(
                 "glyph_cache.image_cache.hit.rate",
                 "glyph_cache.image_cache.miss.rate",
@@ -607,7 +612,12 @@ impl GlyphCache {
 
         Ok(Self {
             fonts: Rc::clone(fonts),
-            glyph_cache: HashMap::new(),
+            glyph_cache: LfuCache::new(
+                "glyph_cache.glyph_cache.hit.rate",
+                "glyph_cache.glyph_cache.miss.rate",
+                |config| config.glyph_cache_glyph_cache_size,
+                &fonts.config(),
+            ),
             image_cache: LfuCache::new(
                 "glyph_cache.image_cache.hit.rate",
                 "glyph_cache.image_cache.miss.rate",
@@ -648,10 +658,8 @@ impl GlyphCache {
         };
 
         if let Some(entry) = self.glyph_cache.get(&key as &dyn GlyphKeyTrait) {
-            metrics::histogram!("glyph_cache.glyph_cache.hit.rate").record(1.);
             return Ok(Rc::clone(entry));
         }
-        metrics::histogram!("glyph_cache.glyph_cache.miss.rate").record(1.);
 
         let glyph = match self.load_glyph(info, font, followed_by_space, num_cells) {
             Ok(g) => g,
@@ -688,12 +696,13 @@ impl GlyphCache {
                 })
             }
         };
-        self.glyph_cache.insert(key.to_owned(), Rc::clone(&glyph));
+        self.glyph_cache.put(key.to_owned(), Rc::clone(&glyph));
         Ok(glyph)
     }
 
     pub fn config_changed(&mut self) {
         let config = self.fonts.config();
+        self.glyph_cache.update_config(&config);
         self.image_cache.update_config(&config);
         self.cursor_glyphs.clear();
     }

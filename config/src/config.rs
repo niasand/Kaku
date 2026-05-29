@@ -862,6 +862,8 @@ pub struct Config {
     pub line_to_ele_shape_cache_size: usize,
     #[dynamic(default = "default_glyph_cache_image_cache_size")]
     pub glyph_cache_image_cache_size: usize,
+    #[dynamic(default = "default_glyph_cache_glyph_cache_size")]
+    pub glyph_cache_glyph_cache_size: usize,
 
     #[dynamic(default)]
     pub visual_bell: VisualBell,
@@ -2522,6 +2524,10 @@ impl DroppedFileQuoting {
 
 fn default_glyph_cache_image_cache_size() -> usize {
     256
+}
+
+fn default_glyph_cache_glyph_cache_size() -> usize {
+    4096
 }
 
 fn default_shape_cache_size() -> usize {
