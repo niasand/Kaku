@@ -305,10 +305,12 @@ mod tests {
 
     fn mux_test_lock() -> MutexGuard<'static, ()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| {
-            log::warn!("test lock poisoned, recovering: {e}");
-            e.into_inner()
-        })
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| {
+                log::warn!("test lock poisoned, recovering: {e}");
+                e.into_inner()
+            })
     }
 
     fn setup_window() -> (Window, Vec<Arc<Tab>>) {

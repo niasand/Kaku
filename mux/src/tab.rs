@@ -592,7 +592,9 @@ fn apply_sizes_from_splits(tree: &Tree, size: &TerminalSize) {
             apply_sizes_from_splits(&*right, &data.second);
         }
         Tree::Leaf(pane) => {
-            pane.resize(*size).map_err(|e| log::warn!("resize failed: {e:#}")).ok();
+            pane.resize(*size)
+                .map_err(|e| log::warn!("resize failed: {e:#}"))
+                .ok();
         }
     }
 }
@@ -1146,7 +1148,9 @@ impl TabInner {
             self.size_before_zoom = size;
             if let Some(pane) = self.get_active_pane() {
                 pane.set_zoomed(true);
-                pane.resize(size).map_err(|e| log::warn!("resize failed: {e:#}")).ok();
+                pane.resize(size)
+                    .map_err(|e| log::warn!("resize failed: {e:#}"))
+                    .ok();
                 self.zoomed.replace(pane);
             }
         }
@@ -1505,7 +1509,10 @@ impl TabInner {
 
         if let Some(zoomed) = &self.zoomed {
             self.size = size;
-            zoomed.resize(size).map_err(|e| log::warn!("resize failed: {e:#}")).ok();
+            zoomed
+                .resize(size)
+                .map_err(|e| log::warn!("resize failed: {e:#}"))
+                .ok();
         } else {
             let dims = cell_dimensions(&size);
             let (min_x, min_y) =
@@ -2139,13 +2146,18 @@ impl TabInner {
                         };
 
                         if let Some(unsplit) = cursor.leaf_mut() {
-                            unsplit.resize(size).map_err(|e| log::warn!("resize failed: {e:#}")).ok();
+                            unsplit
+                                .resize(size)
+                                .map_err(|e| log::warn!("resize failed: {e:#}"))
+                                .ok();
                         } else {
                             self.apply_pane_size(size, &mut cursor);
                         }
                     } else if !dead_panes.is_empty() {
                         // Apply our revised size to the tty
-                        pane.resize(pane_size).map_err(|e| log::warn!("resize failed: {e:#}")).ok();
+                        pane.resize(pane_size)
+                            .map_err(|e| log::warn!("resize failed: {e:#}"))
+                            .ok();
                     }
 
                     pane_index += 1;
