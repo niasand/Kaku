@@ -5,6 +5,16 @@ use finl_unicode::grapheme_clusters::Graphemes;
 use promise::spawn::block_on;
 use promise::Promise;
 use std::sync::Mutex;
+
+fn recover_lock<T>(lock: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    match lock.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            log::warn!("lock poisoned, recovering: {e}");
+            e.into_inner()
+        }
+    }
+}
 use std::time::{Duration, Instant};
 use termwiz::cell::{unicode_column_width, CellAttributes};
 use termwiz::lineedit::*;
@@ -427,7 +437,7 @@ lazy_static::lazy_static! {
 }
 
 fn get_error_window() -> ConnectionUI {
-    let mut err = ERROR_WINDOW.lock().unwrap();
+    let mut err = recover_lock(&ERROR_WINDOW);
     if let Some(ui) = err.as_ref().map(|ui| ui.clone()) {
         ui.output_str("\n");
         if ui.test_alive() {

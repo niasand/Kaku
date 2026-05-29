@@ -291,11 +291,24 @@ mod tests {
     use super::Window;
     use crate::{Mux, Tab};
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+
+    fn recover_lock_static<T>(lock: &Mutex<T>) -> MutexGuard<'_, T> {
+        match lock.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                log::warn!("lock poisoned, recovering: {e}");
+                e.into_inner()
+            }
+        }
+    }
     use wezterm_term::TerminalSize;
 
     fn mux_test_lock() -> MutexGuard<'static, ()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| {
+            log::warn!("test lock poisoned, recovering: {e}");
+            e.into_inner()
+        })
     }
 
     fn setup_window() -> (Window, Vec<Arc<Tab>>) {
