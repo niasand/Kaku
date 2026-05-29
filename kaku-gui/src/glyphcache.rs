@@ -150,6 +150,12 @@ impl<'a> PartialEq for dyn GlyphKeyTrait + 'a {
 
 impl<'a> Eq for dyn GlyphKeyTrait + 'a {}
 
+impl<'a> std::fmt::Debug for dyn GlyphKeyTrait + 'a {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.key().fmt(f)
+    }
+}
+
 impl<'a> std::hash::Hash for dyn GlyphKeyTrait + 'a {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.key().hash(state)
