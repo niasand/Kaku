@@ -76,8 +76,6 @@ dhat-heap.json
 /log/
 long_text_*.txt
 
-# Changelog is managed in GitHub Releases only
-CHANGELOG.md
 # AI/agent local files
 AGENTS.md
 **/AGENTS.md
