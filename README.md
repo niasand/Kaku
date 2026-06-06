@@ -1,15 +1,14 @@
 <div align="center">
   <img src="https://gw.alipayobjects.com/zos/k/6h/dwarf.svg" width="120" />
   <h1>Kaku</h1>
-  <p><em>A fast, out-of-the-box terminal built for AI coding.</em></p>
+  <p><em>A fast, GPU-accelerated terminal emulator for macOS, forked from WezTerm.</em></p>
 </div>
 
 <p align="center">
-  <a href="https://github.com/tw93/Kaku/stargazers"><img src="https://img.shields.io/github/stars/tw93/Kaku?style=flat-square" alt="Stars"></a>
-  <a href="https://github.com/tw93/Kaku/releases"><img src="https://img.shields.io/github/v/tag/tw93/Kaku?label=version&style=flat-square" alt="Version"></a>
+  <a href="https://github.com/niasand/Kaku/stargazers"><img src="https://img.shields.io/github/stars/niasand/Kaku?style=flat-square" alt="Stars"></a>
+  <a href="https://github.com/niasand/Kaku/releases"><img src="https://img.shields.io/github/v/tag/niasand/Kaku?label=version&style=flat-square" alt="Version"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
-  <a href="https://github.com/tw93/Kaku/commits"><img src="https://img.shields.io/github/commit-activity/m/tw93/Kaku?style=flat-square" alt="Commits"></a>
-  <a href="https://twitter.com/HiTw93"><img src="https://img.shields.io/badge/follow-Tw93-red?style=flat-square&logo=Twitter" alt="Twitter"></a>
+  <a href="https://github.com/niasand/Kaku/commits"><img src="https://img.shields.io/github/commit-activity/m/niasand/Kaku?style=flat-square" alt="Commits"></a>
 </p>
 
 <p align="center">
@@ -20,20 +19,23 @@
 
 Kaku (書く, かく) is the Japanese word for writing: the act of putting thought into form. A deeply customized fork of WezTerm, built for practical defaults on day one while keeping full Lua customization and a fast, lightweight feel.
 
-Part of a trilogy: [Kaku](https://github.com/tw93/Kaku) (書く) writes code, [Waza](https://github.com/tw93/Waza) (技) drills habits, [Kami](https://github.com/tw93/Kami) (紙) ships documents. Think of them as a family: Kaku is the dad, Waza the big sister, Kami the little sister.
+Part of a trilogy: [Kaku](https://github.com/niasand/Kaku) (書く) writes code, [Waza](https://github.com/tw93/Waza) (技) drills habits, [Kami](https://github.com/tw93/Kami) (紙) ships documents. Think of them as a family: Kaku is the dad, Waza the big sister, Kami the little sister.
 
 ## Features
 
-- **Zero Config**: Defaults with JetBrains Mono, macOS font rendering, and low-res font sizing.
-- **Theme-Aware Experience**: Auto-switches between dark and light modes with macOS, with tuned selection colors, font weight, and practical color overrides support.
-- **Curated Shell Suite**: Built-in zsh plugins with optional CLI tools for prompt, diff, and navigation workflows.
-- **Fast & Lightweight**: 40% smaller binary, instant startup, lazy loading, stripped-down GPU-accelerated core.
-- **WezTerm-Compatible Config**: Use WezTerm's Lua config directly with full API compatibility and no migration.
+- **Zero Config**: Defaults with JetBrains Mono, macOS font rendering, and tuned line height out of the box.
+- **Theme-Aware**: Auto-switches between dark and light modes with macOS. Includes curated Kaku Dark and Kaku Cream color schemes with Claude Code color overrides.
+- **GPU-Accelerated Rendering**: OpenGL and WebGPU (Metal) backends for smooth, high-FPS terminal output.
+- **Shell Suite**: Built-in zsh plugins (z, zsh-completions, zsh-autosuggestions, fast-syntax-highlighting) and optional CLI tools (starship, delta, lazygit).
 - **Polished Defaults**: Copy on select, clickable file paths, history peek from full-screen apps, pane input broadcast, and visual bell on background tab completion.
+- **Session Restore**: Window layout, tab names, and pane working directories are saved and restored across restarts.
+- **Lazygit Integration**: Open lazygit in a dedicated pane with `Cmd + Shift + G`. Smart detection of git repos and AI agent processes.
+- **Config TUI**: Interactive terminal-based config editor via `kaku config` or `Cmd + ,`.
+- **WezTerm-Compatible Config**: Use WezTerm's Lua config directly with full API compatibility and no migration.
 
 ## Quick Start
 
-1. [Download Kaku DMG](https://github.com/tw93/Kaku/releases/latest) & Drag to Applications
+1. [Download Kaku DMG](https://github.com/niasand/Kaku/releases/latest) & Drag to Applications
 2. Open Kaku. The app is notarized by Apple, so it opens without security warnings
 3. On first launch, Kaku will automatically set up your shell environment
 
@@ -48,41 +50,33 @@ Part of a trilogy: [Kaku](https://github.com/tw93/Kaku) (書く) writes code, [W
 | Navigate Panes | `Cmd + Opt + Arrows` |
 | Split Pane Vertical | `Cmd + D` |
 | Split Pane Horizontal | `Cmd + Shift + D` |
-| Open Settings Panel | `Cmd + ,` |
-| AI Panel | `Cmd + Shift + A` |
-| Apply AI Suggestion | `Cmd + Shift + E` |
+| Open Settings | `Cmd + ,` |
 | Open Lazygit | `Cmd + Shift + G` |
+| Toggle Pane Broadcast | `Cmd + Opt + I` |
 | Clear Screen | `Cmd + K` |
 
 Full keybinding reference: [docs/keybindings.md](docs/keybindings.md)
 
-## Kaku AI
-
-Kaku has a built-in assistant with two modes and a settings page for AI coding tools.
-
-- **Error recovery**: When a command fails, Kaku automatically suggests a fix. Press `Cmd + Shift + E` to apply.
-- **Natural language to command**: Type `# <description>` at the prompt and press Enter. Kaku sends the query to the LLM and injects the resulting command back into the prompt, ready to review and run.
-- **AI Tools Config**: Manage settings for Claude Code, Codex, Gemini CLI, Copilot CLI, Kimi Code, and more.
-
-### Provider Presets
-
-Configure a provider in `~/.config/kaku/assistant.toml` to set the base URL and model:
-
-| Provider | Base URL | Models |
-| :--- | :--- | :--- |
-| OpenAI | `https://api.openai.com/v1` | (free text) |
-| Custom | (manual) | (manual) |
-
-Full AI assistant docs: [docs/features.md](docs/features.md)
-
 ## Performance
 
-| Metric | Upstream | Kaku | Methodology |
+| Metric | Upstream WezTerm | Kaku | Methodology |
 | :--- | :--- | :--- | :--- |
 | **Executable Size** | ~67 MB | ~40 MB | Aggressive symbol stripping & feature pruning |
 | **Resources Volume** | ~100 MB | ~80 MB | Asset optimization & lazy-loaded assets |
 | **Launch Latency** | Standard | Instant | Just-in-time initialization |
 | **Shell Bootstrap** | ~200ms | ~100ms | Optimized environment provisioning |
+
+## CLI
+
+```bash
+kaku                   # Interactive main menu (config/init/doctor/reset)
+kaku config            # Open config TUI editor
+kaku init              # Set up shell integration (zsh/fish)
+kaku doctor            # Diagnose and fix common issues
+kaku reset             # Remove all Kaku managed state
+kaku start             # Launch the GUI terminal
+kaku set-working-directory  # Set CWD via OSC 7
+```
 
 ## FAQ
 
@@ -96,11 +90,11 @@ Full FAQ: [docs/faq.md](docs/faq.md)
 
 ## Docs
 
-- [Keybindings](docs/keybindings.md) - full shortcut reference
-- [Features](docs/features.md) - AI assistant, lazygit, shell suite
-- [Configuration](docs/configuration.md) - themes, fonts, custom keybindings, Lua API
-- [CLI Reference](docs/cli.md) - `kaku config`, `kaku doctor`, `kaku init`, and more
-- [FAQ](docs/faq.md) - common questions and troubleshooting
+- [Keybindings](docs/keybindings.md) — full shortcut reference
+- [Features](docs/features.md) — lazygit, shell suite, session restore
+- [Configuration](docs/configuration.md) — themes, fonts, custom keybindings, Lua API
+- [CLI Reference](docs/cli.md) — `kaku config`, `kaku doctor`, `kaku init`, and more
+- [FAQ](docs/faq.md) — common questions and troubleshooting
 
 ## Background
 
@@ -114,13 +108,13 @@ WezTerm is robust and highly hackable, and I am grateful for its engine and ecos
 
 Big thanks to all contributors who helped build Kaku. Go follow them! ❤️
 
-<a href="https://github.com/tw93/Kaku/graphs/contributors">
+<a href="https://github.com/niasand/Kaku/graphs/contributors">
   <img src="./CONTRIBUTORS.svg?v=2" width="1000" />
 </a>
 
 ## Support
 
-- If Kaku helped you, [share it](https://twitter.com/intent/tweet?url=https://github.com/tw93/Kaku&text=Kaku%20-%20A%20fast%20terminal%20built%20for%20AI%20coding.) with friends or give it a star.
+- If Kaku helped you, [share it](https://twitter.com/intent/tweet?url=https://github.com/niasand/Kaku&text=Kaku%20-%20A%20fast%20terminal%20built%20for%20AI%20coding.) with friends or give it a star.
 - Got ideas or bugs? Open an issue or PR, feel free to contribute your best AI model.
 - I have two cats, TangYuan and Coke. If you think Kaku delights your life, you can feed them <a href="https://cats.tw93.fun?name=Kaku" target="_blank">canned food 🥩</a>.
 
