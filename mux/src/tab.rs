@@ -692,6 +692,16 @@ impl PaneTreeGuard {
         )
     }
 
+    /// Create a guard for a slot that is already empty (used by methods
+    /// like `cascade_size_from_cursor` that receive a cursor from a caller
+    /// who already took the tree).
+    fn for_slot(slot: &mut Option<Tree>) -> Self {
+        Self {
+            slot: slot as *mut Option<Tree>,
+            committed: false,
+        }
+    }
+
     /// Place `tree` back into the slot and disarm the guard.
     fn commit(&mut self, tree: Tree) {
         unsafe {
@@ -1307,7 +1317,8 @@ impl TabInner {
             .map(|p| p.pane.clone())
             .expect("at least one pane");
 
-        let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+        let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+        let mut cursor = tree.cursor();
 
         loop {
             if cursor.is_leaf() {
@@ -1320,7 +1331,7 @@ impl TabInner {
             match cursor.postorder_next() {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     let size = self.size;
                     apply_sizes_from_splits(
                         self.pane.as_mut().expect("tab must have a pane"),
@@ -1344,7 +1355,8 @@ impl TabInner {
             .map(|p| p.pane.clone())
             .expect("at least one pane");
 
-        let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+        let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+        let mut cursor = tree.cursor();
 
         loop {
             if cursor.is_leaf() {
@@ -1357,7 +1369,7 @@ impl TabInner {
             match cursor.preorder_next() {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     let size = self.size;
                     apply_sizes_from_splits(
                         self.pane.as_mut().expect("tab must have a pane"),
@@ -1382,7 +1394,8 @@ impl TabInner {
         };
         let active_pane_id = active_pane.pane_id();
 
-        let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+        let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+        let mut cursor = tree.cursor();
 
         // 定位到 active pane 所在的 leaf
         loop {
@@ -1400,7 +1413,7 @@ impl TabInner {
                 Ok(c) => cursor = c,
                 Err(c) => {
                     // 没找到 active pane（不应该发生）
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     return;
                 }
             }
@@ -1410,7 +1423,7 @@ impl TabInner {
         cursor = match cursor.go_up() {
             Ok(c) => c,
             Err(c) => {
-                self.pane.replace(c.tree());
+                guard.commit(c.tree());
                 return;
             }
         };
@@ -1470,6 +1483,8 @@ impl TabInner {
         }
 
         // 用 cascade_size_from_cursor 级联，正确重算嵌套子 split 尺寸
+        // Disarm outer guard first — cascade manages self.pane internally.
+        guard.disarm();
         self.cascade_size_from_cursor(cursor);
     }
 
@@ -1498,7 +1513,8 @@ impl TabInner {
         let active_idx = self.active;
         let zoomed_id = self.zoomed.as_ref().map(|p| p.pane_id());
         let root_size = self.size;
-        let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+        let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+        let mut cursor = tree.cursor();
 
         loop {
             if cursor.is_leaf() {
@@ -1542,7 +1558,7 @@ impl TabInner {
             match cursor.preorder_next() {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     break;
                 }
             }
@@ -1558,7 +1574,8 @@ impl TabInner {
         }
 
         let (col_g, row_g) = cached_gutters();
-        let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+        let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+        let mut cursor = tree.cursor();
         let mut index = 0;
 
         loop {
@@ -1597,7 +1614,7 @@ impl TabInner {
             match cursor.preorder_next() {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     break;
                 }
             }
@@ -1792,7 +1809,8 @@ impl TabInner {
             return;
         }
 
-        let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+        let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+        let mut cursor = tree.cursor();
         let mut index = 0;
 
         // Position cursor on the specified split
@@ -1808,7 +1826,7 @@ impl TabInner {
                 Ok(c) => cursor = c,
                 Err(c) => {
                     // Didn't find it
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     return;
                 }
             }
@@ -1816,6 +1834,8 @@ impl TabInner {
 
         // Now cursor is looking at the split
         self.adjust_node_at_cursor(&mut cursor, delta);
+        // Disarm outer guard — cascade manages self.pane internally.
+        guard.disarm();
         self.cascade_size_from_cursor(cursor);
         Mux::try_get().map(|mux| mux.notify(MuxNotification::TabResized(self.id)));
     }
@@ -1825,7 +1845,8 @@ impl TabInner {
             return;
         }
 
-        let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+        let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+        let mut cursor = tree.cursor();
         let mut index = 0;
 
         loop {
@@ -1838,13 +1859,15 @@ impl TabInner {
             match cursor.preorder_next() {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     return;
                 }
             }
         }
 
         self.adjust_node_at_cursor(&mut cursor, delta);
+        // Disarm outer guard — cascade manages self.pane internally.
+        guard.disarm();
         self.cascade_size_from_cursor_visual(cursor);
         Mux::try_get().map(|mux| mux.notify(MuxNotification::TabResized(self.id)));
     }
@@ -1894,11 +1917,12 @@ impl TabInner {
     }
 
     fn cascade_size_from_cursor(&mut self, mut cursor: Cursor) {
+        let mut guard = PaneTreeGuard::for_slot(&mut self.pane);
         // Now we need to cascade this down to children
         match cursor.preorder_next() {
             Ok(c) => cursor = c,
             Err(c) => {
-                self.pane.replace(c.tree());
+                guard.commit(c.tree());
                 return;
             }
         }
@@ -1926,7 +1950,7 @@ impl TabInner {
             match cursor.preorder_next() {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     break;
                 }
             }
@@ -1937,10 +1961,11 @@ impl TabInner {
     /// Like `cascade_size_from_cursor` but calls `resize_visual` instead of
     /// `resize`, so only terminal state is updated without PTY notification.
     fn cascade_size_from_cursor_visual(&mut self, mut cursor: Cursor) {
+        let mut guard = PaneTreeGuard::for_slot(&mut self.pane);
         match cursor.preorder_next() {
             Ok(c) => cursor = c,
             Err(c) => {
-                self.pane.replace(c.tree());
+                guard.commit(c.tree());
                 return;
             }
         }
@@ -1965,7 +1990,7 @@ impl TabInner {
             match cursor.preorder_next() {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     break;
                 }
             }
@@ -1978,7 +2003,8 @@ impl TabInner {
             return;
         }
         let active_index = self.active;
-        let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+        let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+        let mut cursor = tree.cursor();
         let mut index = 0;
 
         // Position cursor on the active leaf
@@ -1994,7 +2020,7 @@ impl TabInner {
                 Ok(c) => cursor = c,
                 Err(c) => {
                     // Didn't find it
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     return;
                 }
             }
@@ -2019,6 +2045,8 @@ impl TabInner {
                     if let Ok(Some(node)) = c.node_mut() {
                         if node.direction == split_direction {
                             self.adjust_node_at_cursor(&mut c, delta);
+                            // Disarm outer guard — cascade manages self.pane internally.
+                            guard.disarm();
                             self.cascade_size_from_cursor(c);
                             return;
                         }
@@ -2028,7 +2056,7 @@ impl TabInner {
                 }
 
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     return;
                 }
             }
@@ -2199,7 +2227,8 @@ impl TabInner {
 
         {
             let root_size = self.size;
-            let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+            let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+            let mut cursor = tree.cursor();
             let mut pane_index = 0;
             let mut removed_indices = vec![];
             let cell_dims = self.cell_dimensions();
@@ -2235,10 +2264,10 @@ impl TabInner {
                             Err(c) => {
                                 // We might be the root, for example
                                 if c.is_top() && c.is_leaf() {
-                                    self.pane.replace(Tree::Empty);
+                                    guard.commit(Tree::Empty);
                                     dead_panes.push(pane);
                                 } else {
-                                    self.pane.replace(c.tree());
+                                    guard.commit(c.tree());
                                 }
                                 break;
                             }
@@ -2276,7 +2305,7 @@ impl TabInner {
                 match cursor.preorder_next() {
                     Ok(c) => cursor = c,
                     Err(c) => {
-                        self.pane.replace(c.tree());
+                        guard.commit(c.tree());
                         break;
                     }
                 }
@@ -2419,14 +2448,15 @@ impl TabInner {
         );
 
         {
-            let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+            let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+            let mut cursor = tree.cursor();
 
             // locate the requested index
             match cursor.go_to_nth_leaf(pane_index) {
                 Ok(c) => cursor = c,
                 Err(c) => {
                     log::trace!("didn't find pane {pane_index}");
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     return None;
                 }
             };
@@ -2443,7 +2473,7 @@ impl TabInner {
             match cursor.go_to_nth_leaf(active_idx) {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     log::trace!("didn't find active {active_idx}");
                     return None;
                 }
@@ -2453,7 +2483,7 @@ impl TabInner {
                 &mut pane,
                 cursor.leaf_mut().expect("cursor must point to a leaf"),
             );
-            self.pane.replace(cursor.tree());
+            guard.commit(cursor.tree());
 
             // Advise the panes of their new sizes
             let size = self.size;
@@ -2614,7 +2644,8 @@ impl TabInner {
                 }
             }
 
-            let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+            let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+            let mut cursor = tree.cursor();
 
             if request.top_level && !cursor.is_leaf() {
                 let result = if request.target_is_second {
@@ -2628,7 +2659,7 @@ impl TabInner {
                             Err(c) | Ok(c) => c,
                         };
 
-                        self.pane.replace(cursor.tree());
+                        guard.commit(cursor.tree());
 
                         let pane_index = if request.target_is_second {
                             self.pane.as_ref().unwrap().num_leaves().saturating_sub(1)
@@ -2647,7 +2678,7 @@ impl TabInner {
             match cursor.go_to_nth_leaf(pane_index) {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     anyhow::bail!("invalid pane_index {}; cannot split!", pane_index);
                 }
             };
@@ -2668,7 +2699,7 @@ impl TabInner {
             match cursor.split_leaf_and_insert_right(pane2) {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     anyhow::bail!("invalid pane_index {}; cannot split!", pane_index);
                 }
             };
@@ -2676,7 +2707,7 @@ impl TabInner {
             // cursor now points to the newly created split node;
             // we need to populate its split information
             match cursor.assign_node(Some(split_info)) {
-                Err(c) | Ok(c) => self.pane.replace(c.tree()),
+                Err(c) | Ok(c) => guard.commit(c.tree()),
             };
 
             if request.target_is_second {
