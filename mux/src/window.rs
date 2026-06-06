@@ -292,15 +292,6 @@ mod tests {
     use crate::{Mux, Tab};
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-    fn recover_lock_static<T>(lock: &Mutex<T>) -> MutexGuard<'_, T> {
-        match lock.lock() {
-            Ok(guard) => guard,
-            Err(e) => {
-                log::warn!("lock poisoned, recovering: {e}");
-                e.into_inner()
-            }
-        }
-    }
     use wezterm_term::TerminalSize;
 
     fn mux_test_lock() -> MutexGuard<'static, ()> {

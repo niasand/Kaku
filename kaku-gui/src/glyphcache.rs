@@ -636,7 +636,7 @@ impl GlyphCache {
             block_glyphs: HashMap::new(),
             cursor_glyphs: HashMap::new(),
             color: HashMap::new(),
-            min_frame_duration: Duration::from_millis(1000 / fonts.config().max_fps as u64),
+            min_frame_duration: Duration::from_millis(1000 / fonts.config().max_fps.max(1)),
         })
     }
 }

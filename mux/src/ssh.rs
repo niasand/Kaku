@@ -18,17 +18,9 @@ use std::sync::atomic::AtomicU8;
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 
-fn recover_lock<T>(lock: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    match lock.lock() {
-        Ok(guard) => guard,
-        Err(e) => {
-            log::warn!("lock poisoned, recovering: {e}");
-            e.into_inner()
-        }
-    }
-}
+use crate::util::{recover_lock, PasswordPromptHost};
 use std::time::{Duration, Instant};
-use termwiz::cell::{unicode_column_width, AttributeChange, Intensity};
+use termwiz::cell::{AttributeChange, Intensity};
 use termwiz::input::{InputEvent, InputParser};
 use termwiz::lineedit::*;
 use termwiz::render::terminfo::TerminfoRenderer;
@@ -38,36 +30,6 @@ use wezterm_ssh::{
     ConfigMap, HostVerificationFailed, Session, SessionEvent, SshChildProcess, SshPty,
 };
 use wezterm_term::TerminalSize;
-
-#[derive(Default)]
-struct PasswordPromptHost {
-    history: BasicHistory,
-    echo: bool,
-}
-impl LineEditorHost for PasswordPromptHost {
-    fn history(&mut self) -> &mut dyn History {
-        &mut self.history
-    }
-
-    fn highlight_line(&self, line: &str, cursor_position: usize) -> (Vec<OutputElement>, usize) {
-        if self.echo {
-            (vec![OutputElement::Text(line.to_string())], cursor_position)
-        } else {
-            // Rewrite the input so that we can obscure the password
-            // characters when output to the terminal widget
-            let placeholder = "🔑";
-            let grapheme_count = unicode_column_width(line, None);
-            let mut output = vec![];
-            for _ in 0..grapheme_count {
-                output.push(OutputElement::Text(placeholder.to_string()));
-            }
-            (
-                output,
-                unicode_column_width(placeholder, None) * cursor_position,
-            )
-        }
-    }
-}
 
 pub fn ssh_connect_with_ui(
     ssh_config: wezterm_ssh::ConfigMap,

@@ -1,51 +1,17 @@
 use crate::termwiztermtab;
+use crate::util::{recover_lock, PasswordPromptHost};
 use anyhow::{anyhow, bail, Context as _};
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use finl_unicode::grapheme_clusters::Graphemes;
 use promise::spawn::block_on;
 use promise::Promise;
 use std::sync::Mutex;
-
-fn recover_lock<T>(lock: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    match lock.lock() {
-        Ok(guard) => guard,
-        Err(e) => {
-            log::warn!("lock poisoned, recovering: {e}");
-            e.into_inner()
-        }
-    }
-}
 use std::time::{Duration, Instant};
-use termwiz::cell::{unicode_column_width, CellAttributes};
+use termwiz::cell::CellAttributes;
 use termwiz::lineedit::*;
 use termwiz::surface::{Change, Position};
 use termwiz::terminal::*;
 use wezterm_term::TerminalSize;
-
-#[derive(Default)]
-struct PasswordPromptHost {
-    history: BasicHistory,
-}
-impl LineEditorHost for PasswordPromptHost {
-    fn history(&mut self) -> &mut dyn History {
-        &mut self.history
-    }
-
-    // Rewrite the input so that we can obscure the password
-    // characters when output to the terminal widget
-    fn highlight_line(&self, line: &str, cursor_position: usize) -> (Vec<OutputElement>, usize) {
-        let placeholder = "🔑";
-        let grapheme_count = unicode_column_width(line, None);
-        let mut output = vec![];
-        for _ in 0..grapheme_count {
-            output.push(OutputElement::Text(placeholder.to_string()));
-        }
-        (
-            output,
-            unicode_column_width(placeholder, None) * cursor_position,
-        )
-    }
-}
 
 pub enum UIRequest {
     /// Display something

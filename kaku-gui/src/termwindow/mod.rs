@@ -411,15 +411,7 @@ lazy_static::lazy_static! {
     static ref RENDER_METRICS_CACHE: Mutex<Option<RenderMetricsCacheEntry>> = Mutex::new(None);
 }
 
-pub(crate) fn recover_lock<T>(lock: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    match lock.lock() {
-        Ok(guard) => guard,
-        Err(e) => {
-            log::warn!("lock poisoned, recovering: {e}");
-            e.into_inner()
-        }
-    }
-}
+pub(crate) use mux::util::recover_lock;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct RenderMetricsCacheKey {
