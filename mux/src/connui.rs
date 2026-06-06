@@ -5,7 +5,7 @@ use crossbeam::channel::{unbounded, Receiver, Sender};
 use finl_unicode::grapheme_clusters::Graphemes;
 use promise::spawn::block_on;
 use promise::Promise;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use termwiz::cell::CellAttributes;
 use termwiz::lineedit::*;
@@ -221,6 +221,7 @@ pub struct ConnectionUIParams {
 #[derive(Clone)]
 pub struct ConnectionUI {
     tx: Sender<UIRequest>,
+    handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
 
 impl ConnectionUI {
@@ -252,7 +253,10 @@ impl ConnectionUI {
             None,
         ))
         .detach();
-        Self { tx }
+        Self {
+            tx,
+            handle: Arc::new(Mutex::new(None)),
+        }
     }
 
     pub fn new_with_no_close_delay() -> Self {
@@ -264,11 +268,16 @@ impl ConnectionUI {
 
     pub fn new_headless() -> Self {
         let (tx, rx) = unbounded();
-        std::thread::spawn(move || {
+        let join_handle = std::thread::spawn(move || {
             let mut ui = HeadlessImpl { rx };
-            ui.run()
+            if let Err(e) = ui.run() {
+                log::error!("headless ConnectionUI thread error: {e:#}");
+            }
         });
-        Self { tx }
+        Self {
+            tx,
+            handle: Arc::new(Mutex::new(Some(join_handle))),
+        }
     }
 
     pub fn run_and_log_error<T, F>(&self, f: F) -> anyhow::Result<T>
@@ -395,6 +404,20 @@ impl ConnectionUI {
         }
         std::thread::sleep(Duration::from_millis(50));
         self.tx.send(UIRequest::Output(vec![])).is_ok()
+    }
+}
+
+impl Drop for ConnectionUI {
+    fn drop(&mut self) {
+        // Only the last clone sends Close and joins the thread
+        if Arc::strong_count(&self.handle) == 1 {
+            self.tx.send(UIRequest::Close).ok();
+            if let Ok(mut guard) = self.handle.lock() {
+                if let Some(handle) = guard.take() {
+                    let _ = handle.join();
+                }
+            }
+        }
     }
 }
 

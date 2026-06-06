@@ -11,7 +11,6 @@ use filedescriptor::{poll, pollfd, socketpair, AsRawSocketDescriptor, FileDescri
 use portable_pty::cmdbuilder::CommandBuilder;
 use portable_pty::{ChildKiller, ExitStatus, MasterPty, PtySize};
 use smol::channel::{bounded, Receiver as AsyncReceiver};
-use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::io::{BufWriter, Read, Write};
 use std::sync::atomic::AtomicU8;
@@ -357,7 +356,7 @@ impl RemoteSshDomain {
         let size = Arc::new(Mutex::new(size));
 
         let pty = Box::new(WrappedSshPty {
-            inner: RefCell::new(WrappedSshPtyInner::Connecting {
+            inner: parking_lot::Mutex::new(WrappedSshPtyInner::Connecting {
                 size: Arc::clone(&size),
                 reader: Some(pty_reader),
                 connected: pty_rx,
@@ -838,7 +837,9 @@ impl WrappedSshChild {
             let mut killer = recover_lock(&self.killer.inner);
             killer.killer.replace(child.clone_killer());
             if killer.pending_kill {
-                let _ = child.kill().ok();
+                if let Err(e) = child.kill() {
+                    log::warn!("failed to kill ssh child process: {e:#}");
+                }
             }
         }
 
@@ -957,12 +958,12 @@ type BoxedReader = Box<dyn Read + Send + 'static>;
 type BoxedWriter = Box<dyn Write + Send + 'static>;
 
 pub(crate) struct WrappedSshPty {
-    inner: RefCell<WrappedSshPtyInner>,
+    inner: parking_lot::Mutex<WrappedSshPtyInner>,
 }
 
 impl WrappedSshPty {
     pub fn is_connecting(&mut self) -> bool {
-        self.inner.borrow_mut().is_connecting()
+        self.inner.lock().is_connecting()
     }
 }
 
@@ -1023,7 +1024,7 @@ impl WrappedSshPtyInner {
 
 impl portable_pty::MasterPty for WrappedSshPty {
     fn resize(&self, new_size: PtySize) -> anyhow::Result<()> {
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.inner.lock();
         match &mut *inner {
             WrappedSshPtyInner::Connecting { ref mut size, .. } => {
                 {
@@ -1040,7 +1041,7 @@ impl portable_pty::MasterPty for WrappedSshPty {
     }
 
     fn get_size(&self) -> anyhow::Result<PtySize> {
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.inner.lock();
         match &*inner {
             WrappedSshPtyInner::Connecting { size, .. } => {
                 let size = crate::terminal_size_to_pty_size(*recover_lock(&size))?;
@@ -1052,7 +1053,7 @@ impl portable_pty::MasterPty for WrappedSshPty {
     }
 
     fn try_clone_reader(&self) -> anyhow::Result<Box<dyn Read + Send + 'static>> {
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.inner.lock();
         inner.check_connected()?;
         match &mut *inner {
             WrappedSshPtyInner::Connected { ref mut reader, .. }
@@ -1069,7 +1070,7 @@ impl portable_pty::MasterPty for WrappedSshPty {
 
     #[cfg(unix)]
     fn process_group_leader(&self) -> Option<i32> {
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.inner.lock();
         let _ = inner.check_connected();
         None
     }
