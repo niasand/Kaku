@@ -663,6 +663,63 @@ fn cell_dimensions(size: &TerminalSize) -> TerminalSize {
     }
 }
 
+/// RAII guard that ensures `TabInner::pane` is never left as `None`.
+///
+/// When created via `take()`, it removes the tree from the slot and stores
+/// a raw pointer to the slot. On `commit(new_tree)`, the new tree is placed
+/// back. If dropped without commit (e.g., due to panic), `Tree::new()` is
+/// placed in the slot to prevent cascade panics from a permanent `None`.
+///
+/// Uses a raw pointer internally so that `&mut self` methods on `TabInner`
+/// can be called while the guard is alive (the guard does not hold a Rust
+/// borrow of `self`).
+struct PaneTreeGuard {
+    slot: *mut Option<Tree>,
+    committed: bool,
+}
+
+impl PaneTreeGuard {
+    /// Take the tree from `slot`, returning the tree and a guard that will
+    /// restore `Tree::new()` on panic.
+    fn take(slot: &mut Option<Tree>) -> (Self, Tree) {
+        let tree = slot.take().expect("tab must have a pane");
+        (
+            Self {
+                slot: slot as *mut Option<Tree>,
+                committed: false,
+            },
+            tree,
+        )
+    }
+
+    /// Place `tree` back into the slot and disarm the guard.
+    fn commit(&mut self, tree: Tree) {
+        unsafe {
+            *self.slot = Some(tree);
+        }
+        self.committed = true;
+    }
+
+    /// Disarm without placing a tree. Use when handing off `self.pane`
+    /// management to another method (e.g., `cascade_size_from_cursor`).
+    fn disarm(&mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for PaneTreeGuard {
+    fn drop(&mut self) {
+        if !self.committed {
+            // Best-effort recovery: put an empty tree back to prevent cascade
+            // panics. The original tree data was consumed by the cursor and
+            // cannot be recovered if we get here via panic unwinding.
+            unsafe {
+                *self.slot = Some(Tree::new());
+            }
+        }
+    }
+}
+
 impl Tab {
     fn notify_focused_pane(pane_id: Option<PaneId>) {
         if let Some(pane_id) = pane_id {
@@ -1159,7 +1216,8 @@ impl TabInner {
     /// Returns a count of how many panes are in this tab
     fn count_panes(&mut self) -> usize {
         let mut count = 0;
-        let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
+        let (mut guard, tree) = PaneTreeGuard::take(&mut self.pane);
+        let mut cursor = tree.cursor();
 
         loop {
             if cursor.is_leaf() {
@@ -1168,7 +1226,7 @@ impl TabInner {
             match cursor.preorder_next() {
                 Ok(c) => cursor = c,
                 Err(c) => {
-                    self.pane.replace(c.tree());
+                    guard.commit(c.tree());
                     return count;
                 }
             }
