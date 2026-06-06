@@ -73,10 +73,20 @@ impl TryFrom<i64> for TabId {
     }
 }
 
-#[derive(Default)]
 struct Recency {
     count: usize,
     by_idx: HashMap<usize, usize>,
+}
+
+impl Default for Recency {
+    fn default() -> Self {
+        Self {
+            // Start at 1 so that the first-tagged pane gets score 1,
+            // distinguishable from never-tagged panes which score 0.
+            count: 1,
+            by_idx: HashMap::new(),
+        }
+    }
 }
 
 impl Recency {
@@ -194,56 +204,98 @@ impl Default for SplitRequest {
     }
 }
 
+/// Compute col gutter from a cached gap value (avoids mutex acquisition).
+fn col_gutter_from(gap: u8) -> usize {
+    (1 + 2 * gap as usize).max(1)
+}
+
+/// Compute row gutter from a cached gap value (avoids mutex acquisition).
+fn row_gutter_from(gap: u8) -> usize {
+    (gap as usize).max(1)
+}
+
 /// Returns the column gutter for a horizontal (left|right) split.
 /// With gap = N: 1 center cell + N cells on each side = 1 + 2*N columns.
 fn split_col_gutter() -> usize {
-    (1 + 2 * configuration().split_pane_gap as usize).max(1)
+    col_gutter_from(configuration().split_pane_gap)
 }
 
 /// Returns the row gutter for a vertical (top|bottom) split.
 /// Cell height is ~2× cell width, so use gap rows (min 1) to roughly match
 /// the pixel gap of split_col_gutter: gap=2 → 2 rows ≈ 22px/side ≈ 25px horizontal.
 fn split_row_gutter() -> usize {
-    (configuration().split_pane_gap as usize).max(1)
+    row_gutter_from(configuration().split_pane_gap)
+}
+
+/// Cache the gutter values once to avoid repeated mutex acquisition
+/// during tree-walking operations.
+fn cached_gutters() -> (usize, usize) {
+    let gap = configuration().split_pane_gap;
+    (col_gutter_from(gap), row_gutter_from(gap))
 }
 
 impl SplitDirectionAndSize {
     fn top_of_second(&self) -> usize {
+        let (cg, rg) = cached_gutters();
+        self.top_of_second_with(cg, rg)
+    }
+
+    fn top_of_second_with(&self, _col_g: usize, row_g: usize) -> usize {
         match self.direction {
             SplitDirection::Horizontal => 0,
-            SplitDirection::Vertical => self.first.rows as usize + split_row_gutter(),
+            SplitDirection::Vertical => self.first.rows as usize + row_g,
         }
     }
 
     fn left_of_second(&self) -> usize {
+        let (cg, rg) = cached_gutters();
+        self.left_of_second_with(cg, rg)
+    }
+
+    fn left_of_second_with(&self, col_g: usize, _row_g: usize) -> usize {
         match self.direction {
-            SplitDirection::Horizontal => self.first.cols as usize + split_col_gutter(),
+            SplitDirection::Horizontal => self.first.cols as usize + col_g,
             SplitDirection::Vertical => 0,
         }
     }
 
     pub fn width(&self) -> usize {
+        let (cg, rg) = cached_gutters();
+        self.width_with(cg, rg)
+    }
+
+    pub fn width_with(&self, col_g: usize, _row_g: usize) -> usize {
         if self.direction == SplitDirection::Horizontal {
-            self.first.cols + self.second.cols + split_col_gutter()
+            self.first.cols + self.second.cols + col_g
         } else {
             self.first.cols
         }
     }
 
     pub fn height(&self) -> usize {
+        let (cg, rg) = cached_gutters();
+        self.height_with(cg, rg)
+    }
+
+    pub fn height_with(&self, _col_g: usize, row_g: usize) -> usize {
         if self.direction == SplitDirection::Vertical {
-            self.first.rows + self.second.rows + split_row_gutter()
+            self.first.rows + self.second.rows + row_g
         } else {
             self.first.rows
         }
     }
 
     pub fn size(&self) -> TerminalSize {
+        let (cg, rg) = cached_gutters();
+        self.size_with(cg, rg)
+    }
+
+    pub fn size_with(&self, col_g: usize, row_g: usize) -> TerminalSize {
         let cell_width = self.first.pixel_width / self.first.cols.max(1);
         let cell_height = self.first.pixel_height / self.first.rows.max(1);
 
-        let rows = self.height();
-        let cols = self.width();
+        let rows = self.height_with(col_g, row_g);
+        let cols = self.width_with(col_g, row_g);
 
         TerminalSize {
             rows,
@@ -412,8 +464,9 @@ where
 }
 
 /// Computes the minimum (x, y) size based on the panes in this portion
-/// of the tree.
-fn compute_min_size(tree: &mut Tree) -> (usize, usize) {
+/// of the tree. Takes pre-cached gutter values to avoid repeated mutex
+/// acquisition during recursive tree walks.
+fn compute_min_size_with(tree: &mut Tree, col_g: usize, row_g: usize) -> (usize, usize) {
     match tree {
         Tree::Node { data: None, .. } | Tree::Empty => (1, 1),
         Tree::Node {
@@ -421,19 +474,24 @@ fn compute_min_size(tree: &mut Tree) -> (usize, usize) {
             right,
             data: Some(data),
         } => {
-            let (left_x, left_y) = compute_min_size(&mut *left);
-            let (right_x, right_y) = compute_min_size(&mut *right);
+            let (left_x, left_y) = compute_min_size_with(&mut *left, col_g, row_g);
+            let (right_x, right_y) = compute_min_size_with(&mut *right, col_g, row_g);
             match data.direction {
                 SplitDirection::Vertical => {
-                    (left_x.max(right_x), left_y + right_y + split_row_gutter())
+                    (left_x.max(right_x), left_y + right_y + row_g)
                 }
                 SplitDirection::Horizontal => {
-                    (left_x + right_x + split_col_gutter(), left_y.max(right_y))
+                    (left_x + right_x + col_g, left_y.max(right_y))
                 }
             }
         }
         Tree::Leaf(_) => (1, 1),
     }
+}
+
+fn compute_min_size(tree: &mut Tree) -> (usize, usize) {
+    let (cg, rg) = cached_gutters();
+    compute_min_size_with(tree, cg, rg)
 }
 
 fn adjust_x_size(tree: &mut Tree, mut x_adjust: isize, cell_dimensions: &TerminalSize) {
@@ -1445,6 +1503,7 @@ impl TabInner {
             return dividers;
         }
 
+        let (col_g, row_g) = cached_gutters();
         let mut cursor = self.pane.take().expect("tab must have a pane").cursor();
         let mut index = 0;
 
@@ -1455,18 +1514,18 @@ impl TabInner {
                 for (branch, p) in cursor.path_to_root() {
                     if let Some(p) = p {
                         if branch == PathBranch::IsRight {
-                            left += p.left_of_second();
-                            top += p.top_of_second();
+                            left += p.left_of_second_with(col_g, row_g);
+                            top += p.top_of_second_with(col_g, row_g);
                         }
                     }
                 }
                 if let Ok(Some(node)) = cursor.node_mut() {
                     match node.direction {
                         SplitDirection::Horizontal => {
-                            left += node.first.cols as usize + split_col_gutter() / 2
+                            left += node.first.cols as usize + col_g / 2
                         }
                         SplitDirection::Vertical => {
-                            top += node.first.rows as usize + split_row_gutter() / 2
+                            top += node.first.rows as usize + row_g / 2
                         }
                     }
 
@@ -1476,9 +1535,9 @@ impl TabInner {
                         left,
                         top,
                         size: if node.direction == SplitDirection::Horizontal {
-                            node.height() as usize
+                            node.height_with(col_g, row_g) as usize
                         } else {
-                            node.width() as usize
+                            node.width_with(col_g, row_g) as usize
                         },
                     })
                 }

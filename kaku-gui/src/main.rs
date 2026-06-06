@@ -292,10 +292,8 @@ async fn async_run_terminal_gui(
     cmd: Option<CommandBuilder>,
     opts: StartCommand,
     should_publish: bool,
+    unix_socket_path: PathBuf,
 ) -> anyhow::Result<()> {
-    let unix_socket_path =
-        config::RUNTIME_DIR.join(format!("gui-sock-{}", unsafe { libc::getpid() }));
-    std::env::set_var("KAKU_UNIX_SOCKET", unix_socket_path.clone());
     wezterm_blob_leases::register_storage(Arc::new(
         wezterm_blob_leases::simple_tempdir::SimpleTempDir::new_in(&*config::CACHE_DIR)?,
     ))?;
@@ -688,6 +686,12 @@ fn run_terminal_gui(opts: StartCommand, default_domain_name: Option<String>) -> 
 
     let config = config::configuration();
 
+    // Set KAKU_UNIX_SOCKET before spawning any threads so that
+    // child processes inherit the correct value without racing.
+    let unix_socket_path =
+        config::RUNTIME_DIR.join(format!("gui-sock-{}", unsafe { libc::getpid() }));
+    std::env::set_var("KAKU_UNIX_SOCKET", unix_socket_path.clone());
+
     // Prewarm font caches in a background thread so that
     // FontConfiguration::new() in new_window() hits warm caches instead of
     // blocking the async startup path.
@@ -764,7 +768,7 @@ fn run_terminal_gui(opts: StartCommand, default_domain_name: Option<String>) -> 
     let activity = Activity::new();
 
     promise::spawn::spawn(async move {
-        if let Err(err) = async_run_terminal_gui(cmd, opts, publish.should_publish()).await {
+        if let Err(err) = async_run_terminal_gui(cmd, opts, publish.should_publish(), unix_socket_path).await {
             terminate_with_error(err);
         }
         drop(activity);
@@ -908,6 +912,8 @@ fn run() -> anyhow::Result<()> {
     stats::Stats::init()?;
     let config = config::configuration();
     if let Some(value) = &config.default_ssh_auth_sock {
+        // SAFETY: called on the main thread before any child threads are
+        // spawned (run_terminal_gui and its thread pool start later).
         std::env::set_var("SSH_AUTH_SOCK", value);
     }
 
