@@ -1977,14 +1977,14 @@ impl TermWindow {
     }
 
     fn do_paint_webgpu(&mut self) -> anyhow::Result<bool> {
-        self.webgpu.as_mut().unwrap().resize(self.dimensions);
+        self.webgpu.as_mut().context("webgpu not initialized")?.resize(self.dimensions);
         match self.do_paint_webgpu_impl() {
             Ok(ok) => Ok(ok),
             Err(err) => {
                 match err.downcast_ref::<wgpu::SurfaceError>() {
                     Some(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                         log::warn!("wgpu surface lost/outdated, reconfiguring and retrying");
-                        self.webgpu.as_mut().unwrap().resize(self.dimensions);
+                        self.webgpu.as_mut().context("webgpu not initialized")?.resize(self.dimensions);
                         return self.do_paint_webgpu_impl();
                     }
                     Some(wgpu::SurfaceError::Timeout) => {
@@ -3412,7 +3412,7 @@ impl TermWindow {
             let cursor = pos.pane.get_cursor_position();
             let top = pos.pane.get_dimensions().physical_top;
             let tab_bar_height = if self.show_tab_bar && !self.config.tab_bar_at_bottom {
-                self.tab_bar_pixel_height().unwrap()
+                self.tab_bar_pixel_height().unwrap_or(0.)
             } else {
                 0.0
             };

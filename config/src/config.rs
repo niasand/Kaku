@@ -849,7 +849,7 @@ pub struct Config {
     #[dynamic(default = "default_true")]
     pub unzoom_on_switch_pane: bool,
 
-    #[dynamic(default = "default_max_fps")]
+    #[dynamic(default = "default_max_fps", validate = "validate_max_fps")]
     pub max_fps: u64,
 
     #[dynamic(default = "default_shape_cache_size")]
@@ -2241,6 +2241,14 @@ fn default_anim_fps() -> u8 {
 
 fn default_max_fps() -> u64 {
     60
+}
+
+fn validate_max_fps(value: &u64) -> Result<(), String> {
+    if *value < 1 {
+        Err("max_fps must be at least 1".to_string())
+    } else {
+        Ok(())
+    }
 }
 
 fn default_tiling_desktop_environments() -> Vec<String> {

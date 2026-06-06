@@ -5280,7 +5280,7 @@ impl WindowView {
                 drop(inner);
                 events.dispatch(WindowEvent::NeedRepaint);
                 promise::spawn::spawn(async move {
-                    async_io::Timer::after(std::time::Duration::from_millis(1000 / max_fps as u64))
+                    async_io::Timer::after(std::time::Duration::from_millis(1000 / max_fps.max(1)))
                         .await;
                     Connection::with_window_inner(window_id, move |inner| {
                         if let Some(window_view) = WindowView::get_this(unsafe { &**inner.view }) {

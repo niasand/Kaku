@@ -879,12 +879,14 @@ fn utf16_to_utf8<'lua>(_: &'lua Lua, text: mlua::String) -> mlua::Result<String>
         )));
     }
 
-    // This is "safe" because we checked that the length seems reasonable,
-    // and our new slice is within those same bounds.
-    let wide: &[u16] =
-        unsafe { std::slice::from_raw_parts(bytes.as_ptr() as *const u16, bytes.len() / 2) };
+    // Safe byte-pair reading: no alignment requirement, avoids UB from casting
+    // *const u8 (align 1) to *const u16 (align 2).
+    let wide: Vec<u16> = bytes
+        .chunks_exact(2)
+        .map(|chunk| u16::from_ne_bytes([chunk[0], chunk[1]]))
+        .collect();
 
-    String::from_utf16(wide).map_err(mlua::Error::external)
+    String::from_utf16(&wide).map_err(mlua::Error::external)
 }
 
 pub fn add_to_config_reload_watch_list<'lua>(
