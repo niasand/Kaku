@@ -114,6 +114,10 @@ impl wezterm_term::TerminalConfiguration for TermConfig {
         self.configuration().log_unknown_escape_sequences
     }
 
+    fn enable_osc52_clipboard_write(&self) -> bool {
+        self.configuration().enable_osc52_clipboard_write
+    }
+
     fn normalize_output_to_unicode_nfc(&self) -> bool {
         self.configuration().normalize_output_to_unicode_nfc
     }

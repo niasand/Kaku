@@ -212,6 +212,12 @@ pub trait TerminalConfiguration: Downcast + std::fmt::Debug + Send + Sync {
     fn log_unknown_escape_sequences(&self) -> bool {
         false
     }
+
+    /// Whether to allow OSC 52 escape sequences to write to the system
+    /// clipboard. Defaults to true for backward compatibility.
+    fn enable_osc52_clipboard_write(&self) -> bool {
+        true
+    }
 }
 impl_downcast!(TerminalConfiguration);
 

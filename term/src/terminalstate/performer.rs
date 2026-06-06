@@ -37,6 +37,10 @@ pub(crate) struct Performer<'a> {
     print: String,
 }
 
+/// Maximum payload size (in bytes) accepted for OSC 52 clipboard writes.
+/// Rejecting oversized payloads prevents abuse from malicious programs.
+const MAX_OSC52_PAYLOAD_BYTES: usize = 1024 * 1024; // 1 MB
+
 const PTY_ERROR_LOG_THROTTLE_MS: u64 = 5_000;
 static PTY_WRITE_FMT_LAST_LOG_MS: AtomicU64 = AtomicU64::new(0);
 static PTY_WRITE_FMT_SUPPRESSED: AtomicU64 = AtomicU64::new(0);
@@ -873,10 +877,24 @@ impl<'a> Performer<'a> {
             }
             OperatingSystemCommand::QuerySelection(_) => {}
             OperatingSystemCommand::SetSelection(selection, selection_data) => {
-                let selection = selection_to_selection(selection);
-                match self.set_clipboard_contents(selection, Some(selection_data)) {
-                    Ok(_) => (),
-                    Err(err) => error!("failed to set clipboard in response to OSC 52: {:#?}", err),
+                if !self.config.enable_osc52_clipboard_write() {
+                    log::warn!(
+                        "OSC 52 clipboard write rejected (enable_osc52_clipboard_write is false)"
+                    );
+                } else if selection_data.len() > MAX_OSC52_PAYLOAD_BYTES {
+                    log::warn!(
+                        "OSC 52 clipboard write rejected: payload {} bytes exceeds limit of {} bytes",
+                        selection_data.len(),
+                        MAX_OSC52_PAYLOAD_BYTES
+                    );
+                } else {
+                    let selection = selection_to_selection(selection);
+                    match self.set_clipboard_contents(selection, Some(selection_data)) {
+                        Ok(_) => (),
+                        Err(err) => {
+                            error!("failed to set clipboard in response to OSC 52: {:#?}", err)
+                        }
+                    }
                 }
             }
             OperatingSystemCommand::ITermProprietary(iterm) => match iterm {

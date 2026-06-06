@@ -252,6 +252,13 @@ pub struct Config {
     #[dynamic(default)]
     pub enable_kitty_keyboard: bool,
 
+    /// Whether the terminal should allow OSC 52 escape sequences to write
+    /// to the system clipboard. Enabled by default for backward compatibility.
+    /// Disable to prevent malicious programs from overwriting the clipboard
+    /// (pastejacking attack).
+    #[dynamic(default = "default_true")]
+    pub enable_osc52_clipboard_write: bool,
+
     /// Whether the terminal should respond to requests to read the
     /// title string.
     /// Disabled by default for security concerns with shells that might
