@@ -1969,14 +1969,20 @@ impl TermWindow {
     }
 
     fn do_paint_webgpu(&mut self) -> anyhow::Result<bool> {
-        self.webgpu.as_mut().context("webgpu not initialized")?.resize(self.dimensions);
+        self.webgpu
+            .as_mut()
+            .context("webgpu not initialized")?
+            .resize(self.dimensions);
         match self.do_paint_webgpu_impl() {
             Ok(ok) => Ok(ok),
             Err(err) => {
                 match err.downcast_ref::<wgpu::SurfaceError>() {
                     Some(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                         log::warn!("wgpu surface lost/outdated, reconfiguring and retrying");
-                        self.webgpu.as_mut().context("webgpu not initialized")?.resize(self.dimensions);
+                        self.webgpu
+                            .as_mut()
+                            .context("webgpu not initialized")?
+                            .resize(self.dimensions);
                         return self.do_paint_webgpu_impl();
                     }
                     Some(wgpu::SurfaceError::Timeout) => {
