@@ -768,7 +768,9 @@ fn run_terminal_gui(opts: StartCommand, default_domain_name: Option<String>) -> 
     let activity = Activity::new();
 
     promise::spawn::spawn(async move {
-        if let Err(err) = async_run_terminal_gui(cmd, opts, publish.should_publish(), unix_socket_path).await {
+        if let Err(err) =
+            async_run_terminal_gui(cmd, opts, publish.should_publish(), unix_socket_path).await
+        {
             terminate_with_error(err);
         }
         drop(activity);

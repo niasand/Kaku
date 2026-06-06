@@ -477,12 +477,8 @@ fn compute_min_size_with(tree: &mut Tree, col_g: usize, row_g: usize) -> (usize,
             let (left_x, left_y) = compute_min_size_with(&mut *left, col_g, row_g);
             let (right_x, right_y) = compute_min_size_with(&mut *right, col_g, row_g);
             match data.direction {
-                SplitDirection::Vertical => {
-                    (left_x.max(right_x), left_y + right_y + row_g)
-                }
-                SplitDirection::Horizontal => {
-                    (left_x + right_x + col_g, left_y.max(right_y))
-                }
+                SplitDirection::Vertical => (left_x.max(right_x), left_y + right_y + row_g),
+                SplitDirection::Horizontal => (left_x + right_x + col_g, left_y.max(right_y)),
             }
         }
         Tree::Leaf(_) => (1, 1),
@@ -1521,12 +1517,8 @@ impl TabInner {
                 }
                 if let Ok(Some(node)) = cursor.node_mut() {
                     match node.direction {
-                        SplitDirection::Horizontal => {
-                            left += node.first.cols as usize + col_g / 2
-                        }
-                        SplitDirection::Vertical => {
-                            top += node.first.rows as usize + row_g / 2
-                        }
+                        SplitDirection::Horizontal => left += node.first.cols as usize + col_g / 2,
+                        SplitDirection::Vertical => top += node.first.rows as usize + row_g / 2,
                     }
 
                     dividers.push(PositionedSplit {
