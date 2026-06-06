@@ -298,13 +298,16 @@ fn parse_buffered_data(
     dead: &Arc<AtomicBool>,
     mut rx: FileDescriptor,
 ) {
-    let mut buf = vec![0; configuration().mux_output_parser_buffer_size];
+    // Cache config values once to avoid repeated mutex acquisition in the hot loop.
+    let config = configuration();
+    let mut buf = vec![0; config.mux_output_parser_buffer_size];
+    let sync_timeout_ms = config.mux_synchronized_output_timeout_ms;
     let mut parser = termwiz::escape::parser::Parser::new();
     let mut actions = vec![];
     let mut hold = false;
     let mut hold_start: Option<Instant> = None;
     let mut action_size = 0;
-    let mut delay = Duration::from_millis(configuration().mux_output_parser_coalesce_delay_ms);
+    let delay = Duration::from_millis(config.mux_output_parser_coalesce_delay_ms);
     let mut deadline = None;
     let mut notify_state = PaneOutputNotifyState::default();
 
@@ -419,10 +422,9 @@ fn parse_buffered_data(
                 // Force-flush if synchronized output hold has exceeded timeout
                 // or accumulated data exceeds 1MB, whichever comes first.
                 if hold && !actions.is_empty() {
-                    let timeout_ms = configuration().mux_synchronized_output_timeout_ms;
-                    let timed_out = timeout_ms > 0
+                    let timed_out = sync_timeout_ms > 0
                         && hold_start
-                            .map(|s| s.elapsed() >= Duration::from_millis(timeout_ms))
+                            .map(|s| s.elapsed() >= Duration::from_millis(sync_timeout_ms))
                             .unwrap_or(false);
                     // 1MB cap guards against unbounded growth when timeout_ms == 0
                     // or when a fast producer fills the buffer before the timeout fires.
@@ -469,10 +471,6 @@ fn parse_buffered_data(
                     deadline = None;
                     action_size = 0;
                 }
-
-                let config = configuration();
-                buf.resize(config.mux_output_parser_buffer_size, 0);
-                delay = Duration::from_millis(config.mux_output_parser_coalesce_delay_ms);
             }
         }
     }
