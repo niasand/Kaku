@@ -1,0 +1,280 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'CONTRIBUTORS.svg'
+      - 'assets/screenshots/**'
+      - 'assets/logo.*'
+      - '.github/ISSUE_TEMPLATE/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'CONTRIBUTORS.svg'
+      - 'assets/screenshots/**'
+      - 'assets/logo.*'
+      - '.github/ISSUE_TEMPLATE/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install Rust (nightly)
+        uses: dtolnay/rust-toolchain@0f1b44df7e9cbb178d781a242338dfa5e243ad7f # nightly
+        with:
+          toolchain: nightly
+          components: rustfmt
+
+      - name: Run formatter
+        run: make fmt
+
+      # Auto-push a "style: auto format" commit so contributors don't have to
+      # rerun rustfmt manually. Guards:
+      #   - github.actor check skips runs triggered by this same step (no loop).
+      #   - push event runs for the maintainer's own pushes.
+      #   - PR event only runs for branches inside this repo (forks are read-
+      #     only here; their PR will get a failed `Check formatting` step
+      #     instead, which the contributor must fix locally).
+      # Contributors rebasing on a pushed format commit need to `git pull` —
+      # this trade-off is intentional; see CONTRIBUTING.md.
+      - name: Commit formatted changes
+        if: >
+          github.actor != 'github-actions[bot]' &&
+          (github.event_name == 'push' ||
+           (github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository))
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add -A
+            git commit -m "style: auto format"
+            git push origin HEAD:${{ github.head_ref || github.ref_name }}
+          fi
+
+      - name: Check formatting
+        run: make fmt-check
+
+  test:
+    name: Unit Tests
+    runs-on: macos-latest
+    needs: fmt
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        with:
+          cache-targets: true
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@f092c064826410a38929a5791d2c0225b94432fe # nextest
+
+      - name: Security audit
+        run: |
+          cargo install cargo-audit --locked 2>/dev/null
+          # Only fail on actual vulnerabilities, not upstream warnings (unsound/yanked)
+          cargo audit 2>&1 | tee audit-output.txt
+          if grep -q "^error:" audit-output.txt; then
+            echo "::error::Security vulnerabilities found!"
+            exit 1
+          fi
+          echo "No vulnerabilities found (warnings are informational)"
+
+      - name: Run tests
+        run: |
+          cargo nextest run --locked -E 'not test(shapecache::test::ligatures_jetbrains)'
+          cargo nextest run --locked -p wezterm-escape-parser
+
+      - name: Download vendor dependencies
+        run: bash scripts/download_vendor.sh
+
+      - name: Verify vendor pins
+        run: |
+          test -f assets/vendor/zsh-autosuggestions/.kaku-vendor-ref
+          test "$(cat assets/vendor/zsh-autosuggestions/.kaku-vendor-ref)" = "85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5"
+          test -f assets/vendor/fast-syntax-highlighting/.kaku-vendor-ref
+          test "$(cat assets/vendor/fast-syntax-highlighting/.kaku-vendor-ref)" = "3d574ccf48804b10dca52625df13da5edae7f553"
+          test -f assets/vendor/zsh-completions/.kaku-vendor-ref
+          test "$(cat assets/vendor/zsh-completions/.kaku-vendor-ref)" = "84615f3d0b0e943d5b1de862c9552e572c8e70bb"
+
+      - name: Shell integration smoke tests
+        run: |
+          set -euo pipefail
+          tests=(
+            assets/shell-integration/tests/normalize_kaku_source_line_smoke.sh
+            assets/shell-integration/tests/cleanup_legacy_inline_block_smoke.sh
+            assets/shell-integration/tests/z_jump_provider_smoke.sh
+            assets/shell-integration/tests/starship_rprompt_smoke.sh
+            assets/shell-integration/tests/kiro_autosuggest_compat_smoke.sh
+            assets/shell-integration/tests/install_cli_tools_mise_smoke.sh
+            assets/shell-integration/tests/tmux_integration_smoke.sh
+          )
+          for test_script in "${tests[@]}"; do
+            echo "::group::Running ${test_script}"
+            if ! bash "$test_script"; then
+              echo "Smoke test failed: ${test_script}" >&2
+              exit 1
+            fi
+            echo "::endgroup::"
+          done
+
+  check:
+    name: Cargo Check
+    runs-on: macos-latest
+    needs: fmt
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        with:
+          cache-targets: true
+
+      - name: Guard silent write flush ok
+        run: |
+          if grep -R -nE "write!\(.*\)\.ok\(\)|write_all\(.*\)\.ok\(\)|write_fmt\(.*\)\.ok\(\)|\.flush\(\)\.ok\(\)" --include='*.rs' term kaku kaku-gui mux; then
+            echo "ERROR: write/flush must not silently ignore errors in core crates"
+            exit 1
+          fi
+
+      - name: Check key crates
+        run: cargo check --locked -p kaku -p kaku-gui
+
+      - name: Clippy
+        run: |
+          # Clippy only our crates — inherited WezTerm crates have legacy lint issues
+          # --no-deps prevents linting transitive dependencies (wezterm-bidi etc.)
+          cargo clippy --locked --no-deps -p kaku -p kaku-gui -- -D warnings
+
+  build-arm64:
+    name: Build (arm64)
+    runs-on: macos-latest
+    needs: [check, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-darwin
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        with:
+          cache-targets: true
+
+      - name: Build
+        run: |
+          set -o pipefail
+          cargo build --locked --profile ci --target aarch64-apple-darwin -p kaku -p kaku-gui 2>&1 | sed '/has no symbols/d'
+
+      - name: Upload arm64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaku-arm64
+          path: |
+            target/aarch64-apple-darwin/ci/kaku
+            target/aarch64-apple-darwin/ci/kaku-gui
+
+  build-x86:
+    name: Build (x86_64)
+    runs-on: macos-latest
+    needs: [check, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          toolchain: stable
+          targets: x86_64-apple-darwin
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        with:
+          cache-targets: true
+
+      - name: Build
+        run: |
+          set -o pipefail
+          cargo build --locked --profile ci --target x86_64-apple-darwin -p kaku -p kaku-gui 2>&1 | sed '/has no symbols/d'
+
+      - name: Upload x86_64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaku-x86_64
+          path: |
+            target/x86_64-apple-darwin/ci/kaku
+            target/x86_64-apple-darwin/ci/kaku-gui
+
+  universal-merge:
+    name: Universal Merge
+    runs-on: macos-latest
+    needs: [build-arm64, build-x86]
+    steps:
+      - name: Download arm64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kaku-arm64
+          path: target/aarch64-apple-darwin/ci/
+
+      - name: Download x86_64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kaku-x86_64
+          path: target/x86_64-apple-darwin/ci/
+
+      - name: Lipo merge and verify
+        run: |
+          chmod +x target/aarch64-apple-darwin/ci/kaku target/aarch64-apple-darwin/ci/kaku-gui
+          chmod +x target/x86_64-apple-darwin/ci/kaku target/x86_64-apple-darwin/ci/kaku-gui
+
+          mkdir -p target/universal/ci
+          lipo -create -output target/universal/ci/kaku \
+            target/aarch64-apple-darwin/ci/kaku \
+            target/x86_64-apple-darwin/ci/kaku
+          lipo -create -output target/universal/ci/kaku-gui \
+            target/aarch64-apple-darwin/ci/kaku-gui \
+            target/x86_64-apple-darwin/ci/kaku-gui
+
+          lipo target/universal/ci/kaku -verify_arch arm64 x86_64
+          lipo target/universal/ci/kaku-gui -verify_arch arm64 x86_64
+
+          lipo -info target/universal/ci/kaku
+          lipo -info target/universal/ci/kaku-gui

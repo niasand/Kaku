@@ -1,0 +1,12 @@
+[package]
+name = "wezterm-bidi"
+version = "0.2.3"
+edition = "2021"
+repository = "https://github.com/tw93/Kaku"
+description = "Stub for the Unicode Bidi Algorithm — always LTR"
+license = "MIT"
+
+[features]
+
+[dependencies]
+wezterm-dynamic.workspace = true
