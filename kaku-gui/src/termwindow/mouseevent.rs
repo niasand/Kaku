@@ -108,6 +108,22 @@ fn swipe_tab_direction(
     Some(horz_amount.signum())
 }
 
+/// Decide whether a trackpad gesture should trigger a tab switch, given the
+/// instant of the last switch and a debounce window.
+///
+/// Trackpad swipes emit a burst of wheel ticks and the signed delta can flip
+/// during momentum; switching on every tick makes the active tab oscillate
+/// (or, with two tabs + wrap, flicker rapidly between them). Collapsing to at
+/// most one switch per `debounce` window fixes that, while a short deliberate
+/// flick still switches exactly one tab.
+fn tab_switch_is_due(
+    now: std::time::Instant,
+    last_switch: Option<std::time::Instant>,
+    debounce: std::time::Duration,
+) -> bool {
+    last_switch.map_or(true, |t| now.duration_since(t) >= debounce)
+}
+
 fn should_suppress_wheel_during_terminal_selection(
     capture: Option<&super::MouseCapture>,
     current_mouse_buttons: &[MousePress],
@@ -1546,8 +1562,20 @@ impl super::TermWindow {
                 _ => 0,
             },
         ) {
-            if let Err(err) = self.activate_tab_relative(dir, true) {
-                log::debug!("swipe activate_tab_relative failed: {err:#}");
+            // A trackpad swipe emits a burst of HorzWheel ticks whose delta can
+            // flip during momentum; calling activate_tab_relative on every tick
+            // made the active tab oscillate between neighbours. Debounce to one
+            // switch per window — a short flick still switches exactly one tab.
+            let now = std::time::Instant::now();
+            if tab_switch_is_due(
+                now,
+                self.last_tab_switch,
+                std::time::Duration::from_millis(180),
+            ) {
+                if let Err(err) = self.activate_tab_relative(dir, true) {
+                    log::debug!("swipe activate_tab_relative failed: {err:#}");
+                }
+                self.last_tab_switch = Some(now);
             }
             context.invalidate();
             return;
@@ -2116,7 +2144,8 @@ mod tests {
         );
     }
 
-    use super::swipe_tab_direction;
+    use super::{swipe_tab_direction, tab_switch_is_due};
+    use std::time::{Duration, Instant};
 
     #[test]
     fn swipe_tab_direction_only_when_enabled_and_idle() {
@@ -2135,5 +2164,41 @@ mod tests {
         // Swipe left (negative delta) -> previous tab.
         assert_eq!(swipe_tab_direction(true, false, false, -1), Some(-1));
         assert_eq!(swipe_tab_direction(true, false, false, -7), Some(-1));
+    }
+
+    #[test]
+    fn tab_switch_first_gesture_is_due() {
+        let now = Instant::now();
+        // No prior switch -> always allowed (immediate first switch on a fresh
+        // gesture, so a short flick lands one tab switch).
+        assert!(tab_switch_is_due(now, None, Duration::from_millis(180)));
+    }
+
+    #[test]
+    fn tab_switch_blocked_within_debounce_window() {
+        let last = Instant::now();
+        let debounce = Duration::from_millis(180);
+        // Same instant and just-under-window ticks must be suppressed so a
+        // trackpad burst collapses to a single tab switch instead of oscillating.
+        assert!(!tab_switch_is_due(last, Some(last), debounce));
+        assert!(!tab_switch_is_due(
+            last + Duration::from_millis(179),
+            Some(last),
+            debounce
+        ));
+    }
+
+    #[test]
+    fn tab_switch_due_after_debounce_window() {
+        let last = Instant::now();
+        let debounce = Duration::from_millis(180);
+        // At and beyond the window a new switch is allowed again, so repeated
+        // deliberate flicks each switch one tab.
+        assert!(tab_switch_is_due(last + debounce, Some(last), debounce));
+        assert!(tab_switch_is_due(
+            last + Duration::from_millis(250),
+            Some(last),
+            debounce
+        ));
     }
 }

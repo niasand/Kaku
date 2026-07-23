@@ -979,6 +979,10 @@ pub struct TermWindow {
     dragging: Option<(UIItem, MouseEvent)>,
     split_drag_state: Option<SplitDragState>,
     tab_drag_state: Option<TabDragState>,
+    /// Instant of the last tab switch triggered by a trackpad swipe (or wheel
+    /// over the tab bar). Used to debounce the burst of wheel ticks a trackpad
+    /// emits per gesture so the active tab doesn't oscillate on every tick.
+    last_tab_switch: Option<Instant>,
     /// Tab render offset animations: tab_idx -> (start_offset, ease)
     /// start_offset is the pixel distance from which the tab animates back to 0.
     tab_position_animations: HashMap<usize, (f32, Rc<RefCell<ColorEase>>)>,
@@ -1613,6 +1617,7 @@ impl TermWindow {
             dragging: None,
             split_drag_state: None,
             tab_drag_state: None,
+            last_tab_switch: None,
             tab_position_animations: HashMap::new(),
             last_ui_item: None,
             is_click_to_focus_window: false,
