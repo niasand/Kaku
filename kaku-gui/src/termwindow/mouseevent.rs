@@ -1085,8 +1085,22 @@ impl super::TermWindow {
             },
             WMEK::VertWheel(n) => {
                 if self.config.mouse_wheel_scrolls_tabs {
-                    if let Err(err) = self.activate_tab_relative(if n < 1 { 1 } else { -1 }, true) {
-                        log::debug!("activate_tab_relative on wheel failed: {err:#}");
+                    // Same debounce as the swipe path: a trackpad scroll emits a
+                    // burst of wheel ticks, and firing activate_tab_relative on
+                    // every tick made the active tab oscillate. Collapse to one
+                    // switch per window.
+                    let now = std::time::Instant::now();
+                    if tab_switch_is_due(
+                        now,
+                        self.last_tab_switch,
+                        std::time::Duration::from_millis(180),
+                    ) {
+                        if let Err(err) =
+                            self.activate_tab_relative(if n < 1 { 1 } else { -1 }, true)
+                        {
+                            log::debug!("activate_tab_relative on wheel failed: {err:#}");
+                        }
+                        self.last_tab_switch = Some(now);
                     }
                 }
             }
