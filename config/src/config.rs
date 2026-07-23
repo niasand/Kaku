@@ -526,6 +526,14 @@ pub struct Config {
     #[dynamic(default)]
     pub alternate_screen_wheel_scrolls_terminal: bool,
 
+    /// When true, a two-finger horizontal swipe on the trackpad switches to the
+    /// adjacent tab (iTerm2-style). It only fires on the normal screen when the
+    /// foreground app has not grabbed the mouse, so full-screen TUIs such as
+    /// vim, htop, tmux and less keep their native horizontal scroll. The default
+    /// is true.
+    #[dynamic(default = "default_true")]
+    pub swipe_to_switch_tab: bool,
+
     #[dynamic(try_from = "crate::units::PixelUnit", default = "default_half_cell")]
     pub min_scroll_bar_height: Dimension,
 
