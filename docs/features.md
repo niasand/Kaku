@@ -106,6 +106,20 @@ Install lazygit with `brew install lazygit` or via `kaku init`.
 
 ---
 
+## Trackpad Swipe to Switch Tabs
+
+Swipe left or right with two fingers on the trackpad to switch to the adjacent tab, just like iTerm2.
+
+The gesture only fires on the normal screen when the foreground app has not grabbed the mouse, so full-screen TUIs such as vim, htop, tmux and less keep their native horizontal scroll. On macOS, make sure System Settings → Trackpad → More Gestures → "Swipe between pages" is set to "Scroll left or right with two fingers".
+
+Disable it with:
+
+```lua
+config.swipe_to_switch_tab = false
+```
+
+---
+
 ## Shell Suite
 
 Kaku ships a curated set of shell plugins that load automatically inside Kaku sessions.

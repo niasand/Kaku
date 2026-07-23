@@ -88,6 +88,26 @@ fn should_bypass_wheel_assignment_in_alt(
     is_wheel_event && alt_screen && !mouse_grabbed && !alternate_screen_wheel_scrolls_terminal
 }
 
+/// Returns the tab-switch direction for an iTerm2-style two-finger horizontal
+/// swipe, or `None` when the gesture should fall through to normal handling.
+///
+/// It only fires when the feature is enabled and the foreground owns the normal
+/// screen without grabbing the mouse, so full-screen TUIs (vim, htop, tmux,
+/// less) keep their native horizontal scroll. `horz_amount` is the signed
+/// horizontal wheel delta: positive swipes toward the next (right) tab and
+/// negative toward the previous (left) tab.
+fn swipe_tab_direction(
+    enabled: bool,
+    is_alt_screen: bool,
+    is_mouse_grabbed: bool,
+    horz_amount: isize,
+) -> Option<isize> {
+    if !enabled || is_alt_screen || is_mouse_grabbed || horz_amount == 0 {
+        return None;
+    }
+    Some(horz_amount.signum())
+}
+
 fn should_suppress_wheel_during_terminal_selection(
     capture: Option<&super::MouseCapture>,
     current_mouse_buttons: &[MousePress],
@@ -1513,6 +1533,26 @@ impl super::TermWindow {
             return;
         }
 
+        // iTerm2-style: a two-finger horizontal swipe on the trackpad switches
+        // to the adjacent tab, but only when the shell owns the normal screen
+        // and hasn't grabbed the mouse. Full-screen TUIs (vim/htop/tmux/less)
+        // fall through and keep their native horizontal scroll.
+        if let Some(dir) = swipe_tab_direction(
+            self.config.swipe_to_switch_tab,
+            pane.is_alt_screen_active(),
+            pane.is_mouse_grabbed(),
+            match event.kind {
+                WMEK::HorzWheel(amount) => amount as isize,
+                _ => 0,
+            },
+        ) {
+            if let Err(err) = self.activate_tab_relative(dir, true) {
+                log::debug!("swipe activate_tab_relative failed: {err:#}");
+            }
+            context.invalidate();
+            return;
+        }
+
         if bypass_wheel_assignment_in_alt {
             if let Err(err) = self.scroll_by_current_event_wheel_delta(&pane) {
                 log::debug!("scroll_by_current_event_wheel_delta failed: {err:#}");
@@ -2074,5 +2114,26 @@ mod tests {
             compute_drag_target(2, 200, Some(&tabs[1]), Some(&tabs[3])),
             None
         );
+    }
+
+    use super::swipe_tab_direction;
+
+    #[test]
+    fn swipe_tab_direction_only_when_enabled_and_idle() {
+        // Disabled feature -> never switch.
+        assert_eq!(swipe_tab_direction(false, false, false, 5), None);
+        // Alt-screen TUI owns the screen -> let it scroll.
+        assert_eq!(swipe_tab_direction(true, true, false, 5), None);
+        // Mouse-grabbed app (vim/tmux mouse mode) -> let it scroll.
+        assert_eq!(swipe_tab_direction(true, false, true, 5), None);
+        // No horizontal movement -> nothing to do.
+        assert_eq!(swipe_tab_direction(true, false, false, 0), None);
+
+        // Swipe right (positive delta) -> next tab.
+        assert_eq!(swipe_tab_direction(true, false, false, 1), Some(1));
+        assert_eq!(swipe_tab_direction(true, false, false, 7), Some(1));
+        // Swipe left (negative delta) -> previous tab.
+        assert_eq!(swipe_tab_direction(true, false, false, -1), Some(-1));
+        assert_eq!(swipe_tab_direction(true, false, false, -7), Some(-1));
     }
 }
