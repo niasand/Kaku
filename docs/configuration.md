@@ -105,6 +105,14 @@ config.window_decorations = "RESIZE"
 
 `RESIZE` preserves the ability to resize the window from its edges and drag it by the tab bar; it only removes the close/minimize/zoom buttons.
 
+**Title area double-click**
+
+Double-clicking an empty title/tab-bar area zooms the window by default. Keep those double-clicks inert without hiding the traffic lights:
+
+```lua
+config.allow_title_area_double_click_zoom = false
+```
+
 **Padding**
 
 ```lua
@@ -140,10 +148,13 @@ config.copy_on_select = false
 **Working directory inheritance**
 
 ```lua
+config.default_cwd = "/path/to/default/directory"      -- startup directory
 config.window_inherit_working_directory = true   -- new windows
 config.tab_inherit_working_directory = true       -- new tabs
 config.split_pane_inherit_working_directory = true -- new splits
 ```
+
+`default_cwd` takes precedence over Kaku's remembered last directory. To always open a fixed directory, set it to an absolute path.
 
 **Tab bar**
 

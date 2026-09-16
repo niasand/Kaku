@@ -779,7 +779,9 @@ end
 -- config.tab_bar_at_bottom = true
 -- config.tab_title_show_basename_only = true
 --
--- 9) Working directory inheritance
+-- 9) Working directory and title area
+-- config.default_cwd = '/path/to/default/directory'
+-- config.allow_title_area_double_click_zoom = false
 -- config.window_inherit_working_directory = true
 -- config.tab_inherit_working_directory = true
 -- config.split_pane_inherit_working_directory = true
@@ -969,6 +971,19 @@ mod tests {
         assert!(
             content.contains("return config.remember_last_cwd ~= false"),
             "bundled kaku.lua should read remember_last_cwd from the parsed config table"
+        );
+    }
+
+    #[test]
+    fn bundled_kaku_lua_prefers_default_cwd_over_last_cwd() {
+        let bundled = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../assets/macos/Kaku.app/Contents/Resources/kaku.lua");
+        let content = std::fs::read_to_string(&bundled).expect("read bundled kaku.lua");
+
+        assert!(
+            content.contains("local start_cwd = config.default_cwd")
+                && content.contains("if not start_cwd and should_remember_last_cwd()"),
+            "bundled kaku.lua should let default_cwd override remembered last_cwd"
         );
     }
 }

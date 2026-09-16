@@ -2316,8 +2316,8 @@ wezterm.on('gui-startup', function(cmd)
 
   -- Normal startup
   if not cmd then
-    local start_cwd = nil
-    if should_remember_last_cwd() then
+    local start_cwd = config.default_cwd
+    if not start_cwd and should_remember_last_cwd() then
       local saved = read_last_cwd()
       if saved and saved ~= '' then
         local result = os.execute(string.format('[ -d %q ] 2>/dev/null', saved))

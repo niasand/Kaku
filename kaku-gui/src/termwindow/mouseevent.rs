@@ -51,10 +51,11 @@ fn mouse_dispatch_target(
 fn should_zoom_title_area(
     window_decorations: window::WindowDecorations,
     click_streak: Option<usize>,
+    allow_double_click_zoom: bool,
 ) -> bool {
-    window_decorations
-        == (window::WindowDecorations::INTEGRATED_BUTTONS | window::WindowDecorations::RESIZE)
-        && click_streak == Some(2)
+    let integrated_resize = window_decorations
+        == (window::WindowDecorations::INTEGRATED_BUTTONS | window::WindowDecorations::RESIZE);
+    allow_double_click_zoom && integrated_resize && click_streak == Some(2)
 }
 
 fn tab_bar_item_starts_window_drag(item: TabBarItem) -> bool {
@@ -659,8 +660,11 @@ impl super::TermWindow {
                         let maximized = self
                             .window_state
                             .intersects(WindowState::MAXIMIZED | WindowState::FULL_SCREEN);
-                        // Double-click title area to zoom window
-                        if self.last_mouse_click.as_ref().map(|c| c.streak) == Some(2) {
+                        if should_zoom_title_area(
+                            self.config.window_decorations,
+                            self.last_mouse_click.as_ref().map(|c| c.streak),
+                            self.config.allow_title_area_double_click_zoom,
+                        ) {
                             if let Some(ref window) = self.window {
                                 if maximized {
                                     window.restore();
@@ -979,6 +983,7 @@ impl super::TermWindow {
                             if should_zoom_title_area(
                                 self.config.window_decorations,
                                 self.last_mouse_click.as_ref().map(|c| c.streak),
+                                self.config.allow_title_area_double_click_zoom,
                             ) {
                                 if maximized {
                                     window.restore();
@@ -1879,10 +1884,21 @@ mod tests {
         assert!(should_zoom_title_area(
             WindowDecorations::INTEGRATED_BUTTONS | WindowDecorations::RESIZE,
             Some(2),
+            true,
         ));
         assert!(!should_zoom_title_area(
             WindowDecorations::INTEGRATED_BUTTONS | WindowDecorations::RESIZE,
             Some(1),
+            true,
+        ));
+    }
+
+    #[test]
+    fn title_area_double_click_zoom_can_be_disabled() {
+        assert!(!should_zoom_title_area(
+            WindowDecorations::INTEGRATED_BUTTONS | WindowDecorations::RESIZE,
+            Some(2),
+            false,
         ));
     }
 

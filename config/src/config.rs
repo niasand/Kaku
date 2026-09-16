@@ -850,6 +850,11 @@ pub struct Config {
     #[dynamic(default = "default_swallow_mouse_click_on_window_focus")]
     pub swallow_mouse_click_on_window_focus: bool,
 
+    /// When true, double-clicking an empty title/tab-bar area zooms the window.
+    /// Set this to false to keep double-clicks in the title area inert.
+    #[dynamic(default = "default_true")]
+    pub allow_title_area_double_click_zoom: bool,
+
     #[dynamic(default)]
     pub pane_focus_follows_mouse: bool,
 
