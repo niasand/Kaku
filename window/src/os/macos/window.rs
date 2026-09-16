@@ -3278,6 +3278,21 @@ mod tests {
     }
 
     #[test]
+    fn command_arrow_events_reach_the_key_binding_pipeline() {
+        // macOS dispatches Command+navigation keys through
+        // performKeyEquivalent rather than keyDown. They must be synthesized
+        // as normal key events so Lua key bindings can act on them.
+        for (chars, virtual_key) in [("", kVK_LeftArrow), ("", kVK_RightArrow)] {
+            assert!(should_intercept_perform_key_equivalent(
+                chars,
+                chars,
+                Modifiers::SUPER,
+                virtual_key,
+            ));
+        }
+    }
+
+    #[test]
     fn perform_key_equivalent_intercept_matrix_for_cmd_alnum() {
         // Core Cmd+alnum combinations should be intercepted.
         assert!(should_intercept_perform_key_equivalent(
