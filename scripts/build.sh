@@ -109,7 +109,9 @@ detect_signing_identity() {
 	# 跨版本稳定 → macOS TCC 授权（辅助功能/屏幕录制等）在替换安装后不重弹。
 	identities=$(security find-identity -v -p codesigning 2>/dev/null | awk -F '"' '/Kaku Dev/{print $2}' || true)
 	if [[ -n "$identities" ]]; then
-		KAKU_SIGNING_IDENTITY="$identities"
+		# System keychain 信任副本 + build keychain 正本会让 find-identity 列出多行；
+		# 多行名字直接传给 codesign --sign 会整体失配（"no identity found"），必须只取一行。
+		KAKU_SIGNING_IDENTITY="$(printf '%s\n' "$identities" | head -n1)"
 		export KAKU_SIGNING_IDENTITY
 		echo "Release build: auto-detected self-signed identity: $KAKU_SIGNING_IDENTITY (not notarizable)"
 		return 0

@@ -59,7 +59,7 @@ jobs:
           security find-identity -v -p codesigning
 
       - name: Build app bundle + DMG
-        run: bash scripts/build.sh 2>&1 | sed '/has no symbols/d'
+        run: set -o pipefail; bash scripts/build.sh 2>&1 | sed '/has no symbols/d'
 
       - name: Verify bundled shell plugins are pinned
         run: |
