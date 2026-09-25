@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      arch:
+        description: "Build architecture (universal | native | arm64 | x86_64)"
+        required: false
+        default: "universal"
+        type: string
 
 permissions:
   contents: write
@@ -45,6 +51,9 @@ jobs:
           fi
           KEYCHAIN="build.keychain-db"
           security create-keychain -p "" "$KEYCHAIN"
+          # 签名发生在长编译之后：显式禁用自动锁，防止 codesign 用私钥时钥匙串已回锁。
+          security set-keychain-settings "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
           security default-keychain -s "$KEYCHAIN"
           # 私钥走 P12（security 原生解析，不碰 openssl）；信任走 CRT_PEM。
           printf '%s' "$P12_BASE64" | base64 -d > /tmp/codesign.p12
@@ -59,6 +68,8 @@ jobs:
           security find-identity -v -p codesigning
 
       - name: Build app bundle + DMG
+        env:
+          BUILD_ARCH: ${{ github.event_name == 'workflow_dispatch' && inputs.arch || 'universal' }}
         run: set -o pipefail; bash scripts/build.sh 2>&1 | sed '/has no symbols/d'
 
       - name: Verify bundled shell plugins are pinned
