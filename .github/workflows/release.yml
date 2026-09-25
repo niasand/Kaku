@@ -57,3 +57,17 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+
+      - name: Prune old releases (keep latest only)
+        # Free-tier storage hygiene: drop old DMG releases after each publish
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tags=$(gh release list -R "$GITHUB_REPOSITORY" --limit 100 \
+            --json tagName,isLatest --jq '.[] | select(.isLatest == false) | .tagName')
+          for tag in $tags; do
+            gh release delete "$tag" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag \
+              || gh release delete "$tag" -R "$GITHUB_REPOSITORY" --yes || true
+          done
