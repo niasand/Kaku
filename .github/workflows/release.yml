@@ -30,6 +30,34 @@ jobs:
       - name: Cache Cargo
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
 
+      - name: Import codesigning certificate
+        # 固定自签证书签名：TCC 授权锚点是证书根哈希而非二进制哈希，
+        # 替换安装后权限不重弹。无 secret 时 build.sh 自动降级 ad-hoc。
+        env:
+          P12_BASE64: ${{ secrets.KAKU_CODESIGN_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.KAKU_CODESIGN_P12_PASSWORD }}
+          CRT_PEM: ${{ secrets.KAKU_CODESIGN_CRT_PEM }}
+        run: |
+          set -euo pipefail
+          if [ -z "$P12_BASE64" ]; then
+            echo "[codesign] KAKU_CODESIGN_P12_BASE64 not set → build.sh will fall back to ad-hoc"
+            exit 0
+          fi
+          KEYCHAIN="build.keychain-db"
+          security create-keychain -p "" "$KEYCHAIN"
+          security default-keychain -s "$KEYCHAIN"
+          # 私钥走 P12（security 原生解析，不碰 openssl）；信任走 CRT_PEM。
+          printf '%s' "$P12_BASE64" | base64 -d > /tmp/codesign.p12
+          printf '%s\n' "$CRT_PEM" > /tmp/codesign.crt
+          security import /tmp/codesign.p12 -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          # add-trusted-cert 写用户钥匙串会等 Security Agent UI（headless 永远等不到）：
+          # sudo 写 System keychain 是无 UI 路径；perl alarm 兜底防静默挂死。
+          sudo perl -e 'alarm 60; exec @ARGV' -- \
+            security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/codesign.crt
+          perl -e 'alarm 60; exec @ARGV' -- \
+            security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN"
+          security find-identity -v -p codesigning
+
       - name: Build app bundle + DMG
         run: bash scripts/build.sh 2>&1 | sed '/has no symbols/d'
 
@@ -71,3 +99,10 @@ jobs:
             gh release delete "$tag" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag \
               || gh release delete "$tag" -R "$GITHUB_REPOSITORY" --yes || true
           done
+
+      - name: Cleanup signing keychain
+        if: always()
+        run: |
+          security default-keychain -s ~/Library/Keychains/login.keychain-db 2>/dev/null || true
+          security delete-keychain build.keychain-db 2>/dev/null || true
+          rm -f /tmp/codesign.p12 /tmp/codesign.crt

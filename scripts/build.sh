@@ -84,9 +84,9 @@ detect_signing_identity() {
 
 	if [[ -n "${KAKU_SIGNING_IDENTITY:-}" ]]; then
 		if ! is_developer_id_application_identity "$KAKU_SIGNING_IDENTITY"; then
+			# 自签/个人证书可以签名（TCC 授权锚点跨版本稳定），只是不能公证。
 			echo "Warning: KAKU_SIGNING_IDENTITY is not a Developer ID Application certificate: $KAKU_SIGNING_IDENTITY" >&2
-			echo "Notarization requires Developer ID Application signing." >&2
-			return 1
+			echo "Self-signed identities cannot be notarized; using it for signing only." >&2
 		fi
 		return 0
 	fi
@@ -102,6 +102,16 @@ detect_signing_identity() {
 		else
 			echo "Release build: auto-detected signing identity: $KAKU_SIGNING_IDENTITY"
 		fi
+		return 0
+	fi
+
+	# 个人免费路径：自签证书（"Kaku Dev"）的 designated requirement 锚点是证书根哈希，
+	# 跨版本稳定 → macOS TCC 授权（辅助功能/屏幕录制等）在替换安装后不重弹。
+	identities=$(security find-identity -v -p codesigning 2>/dev/null | awk -F '"' '/Kaku Dev/{print $2}' || true)
+	if [[ -n "$identities" ]]; then
+		KAKU_SIGNING_IDENTITY="$identities"
+		export KAKU_SIGNING_IDENTITY
+		echo "Release build: auto-detected self-signed identity: $KAKU_SIGNING_IDENTITY (not notarizable)"
 		return 0
 	fi
 
@@ -318,6 +328,12 @@ BASE_SIGN_ARGS=(
 	--force
 	--sign "$SIGNING_IDENTITY"
 )
+
+if [[ "$SIGNING_IDENTITY" != "-" ]] && ! is_developer_id_application_identity "$SIGNING_IDENTITY"; then
+	# Apple 时间戳服务只给 Apple 签发的证书盖戳；自签证书必须显式关闭，
+	# 否则 codesign 会因 "timestamp service is not available" 反复重试后失败。
+	BASE_SIGN_ARGS+=(--timestamp=none)
+fi
 
 RUNTIME_SIGN_ARGS=(
 	"${BASE_SIGN_ARGS[@]}"
