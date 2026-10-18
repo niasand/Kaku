@@ -46,6 +46,7 @@ use lfucache::*;
 use mlua::{FromLua, LuaSerdeExt, UserData, UserDataFields};
 use mux::pane::{
     CachePolicy, CloseReason, Pane, PaneId, Pattern as MuxPattern, PerformAssignmentResult,
+    WithPaneLines,
 };
 use mux::renderable::RenderableDimensions;
 use mux::tab::{
@@ -67,6 +68,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use termwiz::hyperlink::Hyperlink;
+use termwiz::surface::Line;
 use termwiz::surface::SequenceNo;
 use wezterm_dynamic::Value;
 use wezterm_font::units::PixelLength;
@@ -4639,7 +4641,12 @@ impl TermWindow {
         // We get that assurance for free as part of the async dispatch that we
         // perform below; here we allow the user to define an `open-uri` event
         // handler that can bypass the normal `open_url` functionality.
-        if let Some(link) = self.current_highlight.as_ref().cloned() {
+        let highlight = self
+            .current_highlight
+            .as_ref()
+            .cloned()
+            .or_else(|| self.hyperlink_under_last_mouse_pos(pane));
+        if let Some(link) = highlight {
             let uri = link.uri().to_string();
             let is_file_uri = uri.starts_with("file://");
             let resolved_target = if is_file_uri {
@@ -4703,6 +4710,53 @@ impl TermWindow {
             }))
             .detach();
         }
+    }
+
+    /// Re-resolve the hyperlink under the last known mouse position.
+    ///
+    /// `current_highlight` is only refreshed by mouse movement, so it can be
+    /// stale or missing when ⌘+Click (or the `OpenLinkAtMouseCursor` key
+    /// assignment) fires without a preceding hover pass: the pane may have
+    /// scrolled, newly arrived output may have shifted the link, or the
+    /// pointer may never have moved since the window opened.
+    fn hyperlink_under_last_mouse_pos(&self, pane: &Arc<dyn Pane>) -> Option<Arc<Hyperlink>> {
+        let (column, stable_row) = {
+            let state = self.pane_state(pane.pane_id());
+            state
+                .mouse_terminal_coords
+                .map(|(position, row)| (position.column, row))
+        }?;
+
+        // apply_hyperlinks walks the full logical line, so passing the
+        // hovered row is sufficient even when the URL wraps across
+        // physical rows.
+        pane.apply_hyperlinks(stable_row..stable_row + 1, &self.config.hyperlink_rules);
+
+        struct FindLinkUnderMouse {
+            current: Option<Arc<Hyperlink>>,
+            stable_row: StableRowIndex,
+            column: usize,
+        }
+
+        impl WithPaneLines for FindLinkUnderMouse {
+            fn with_lines_mut(&mut self, stable_top: StableRowIndex, lines: &mut [&mut Line]) {
+                if stable_top == self.stable_row {
+                    if let Some(line) = lines.get(0) {
+                        if let Some(cell) = line.get_cell(self.column) {
+                            self.current = cell.attrs().hyperlink().cloned();
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut find = FindLinkUnderMouse {
+            current: None,
+            stable_row,
+            column,
+        };
+        pane.with_lines_mut(stable_row..stable_row + 1, &mut find);
+        find.current
     }
 
     fn resolve_file_path(&self, pane: &Arc<dyn Pane>, uri: &str) -> Option<FileLinkTarget> {

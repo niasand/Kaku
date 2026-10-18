@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-18 — 超链接识别与 ⌘+Click 打开修复
+
+### Fixed
+
+- **CJK 文本吞进 URL scheme** — `GENERIC/CLOSING_PARENTHESIS_HYPERLINK_PATTERN` 原用 `\b\w+://`，Rust regex Unicode 模式下 `\w` 含汉字，`链接https://example.com` 会生成非法 URI `链接https://…` 导致点击打不开。改为 ASCII-only scheme（`[a-zA-Z][a-zA-Z0-9+.-]*`）+ 负向后顾边界（`(?<![a-zA-Z0-9_+.-])`），中文紧贴 URL 前后都视为边界；尾部全角标点截断行为保持不变。新增 3 个回归测试。
+- **⌘+Click 依赖过期 hover 状态** — `OpenLinkAtMouseCursor` 直接读 `current_highlight`，该字段仅在鼠标移动时刷新；终端滚动/新输出移位链接、或指针从未移动时点击会静默无动作。现在 `do_open_link_at_mouse_cursor` 在 hover 未命中时按 `mouse_terminal_coords` 最后位置现场重算链接（`hyperlink_under_last_mouse_pos`）。
+
 ## 2026-06-06 — Auto Review: 10 Critical/High/Medium Bug Fixes
 
 基于自动化代码审查（4 维度 × 18 个子代理），发现 50 个问题，经对抗验证后确认 48 个。已修复覆盖 P0-P2 共 10 项，发布 v0.12.9 → v0.12.14。

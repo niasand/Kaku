@@ -164,9 +164,15 @@ impl<'t> Match<'t> {
 // Use ASCII-only visible character classes (\x21-\x7e) so that non-ASCII
 // characters such as full-width punctuation (e.g. U+FF0C ，) and CJK text
 // are treated as URL boundaries rather than being included in the link.
+// The scheme is likewise restricted to ASCII letters/digits plus `+.-` and
+// guarded by a negative lookbehind over that same class: Rust regexes are
+// Unicode-aware by default, so a bare `\w+` would happily swallow CJK text
+// glued to the front of a URL (e.g. `链接https://example.com`) and produce
+// an invalid URI that cannot be opened.
 pub const CLOSING_PARENTHESIS_HYPERLINK_PATTERN: &str =
-    r"\b\w+://[\x21-\x27\x2a-\x7e]*\([\x21-\x7e]*\)(?=\s|$|[^_/a-zA-Z0-9-])";
-pub const GENERIC_HYPERLINK_PATTERN: &str = r"\b\w+://[\x21-\x7e]+[_/a-zA-Z0-9-]";
+    r"(?<![a-zA-Z0-9_+.\-])[a-zA-Z][a-zA-Z0-9+.\-]*://[\x21-\x27\x2a-\x7e]*\([\x21-\x7e]*\)(?=\s|$|[^_/a-zA-Z0-9\-])";
+pub const GENERIC_HYPERLINK_PATTERN: &str =
+    r"(?<![a-zA-Z0-9_+.\-])[a-zA-Z][a-zA-Z0-9+.\-]*://[\x21-\x7e]+[_/a-zA-Z0-9\-]";
 
 impl Rule {
     /// Construct a new rule.  It may fail if the regex is invalid.
@@ -330,5 +336,42 @@ mod test {
             Rule::match_hyperlinks("https://github.com/foo/bar#anchor\u{4e2d}\u{6587}", &rules);
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].link.uri(), "https://github.com/foo/bar#anchor");
+    }
+
+    #[test]
+    fn parse_skips_cjk_prefix() {
+        // Unicode `\w` would treat `链接https` as one scheme and yield an
+        // unopenable URI; the ASCII-only scheme guard must split them.
+        let rules = vec![Rule::new(GENERIC_HYPERLINK_PATTERN, "$0").unwrap()];
+        let matches = Rule::match_hyperlinks(
+            "\u{94fe}\u{63a5}https://example.com/path \u{6253}\u{5f00}",
+            &rules,
+        );
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].link.uri(), "https://example.com/path");
+    }
+
+    #[test]
+    fn parse_skips_cjk_prefix_closing_parenthesis() {
+        let rules = vec![Rule::new(CLOSING_PARENTHESIS_HYPERLINK_PATTERN, "$0").unwrap()];
+        let matches = Rule::match_hyperlinks(
+            "\u{770b}https://en.wikipedia.org/wiki/Foo_(bar)\u{5427}",
+            &rules,
+        );
+        assert_eq!(matches.len(), 1);
+        assert_eq!(
+            matches[0].link.uri(),
+            "https://en.wikipedia.org/wiki/Foo_(bar)"
+        );
+    }
+
+    #[test]
+    fn parse_rejects_scheme_glued_to_ascii_word() {
+        // `abchttps` stays a single (invalid) scheme token, matching the
+        // previous `\b\w+://` behavior.
+        let rules = vec![Rule::new(GENERIC_HYPERLINK_PATTERN, "$0").unwrap()];
+        let matches = Rule::match_hyperlinks("abchttps://example.com", &rules);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].link.uri(), "abchttps://example.com");
     }
 }
