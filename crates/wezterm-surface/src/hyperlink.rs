@@ -169,8 +169,7 @@ impl<'t> Match<'t> {
 // Unicode-aware by default, so a bare `\w+` would happily swallow CJK text
 // glued to the front of a URL (e.g. `链接https://example.com`) and produce
 // an invalid URI that cannot be opened.
-pub const CLOSING_PARENTHESIS_HYPERLINK_PATTERN: &str =
-    r"(?<![a-zA-Z0-9_+.\-])[a-zA-Z][a-zA-Z0-9+.\-]*://[\x21-\x27\x2a-\x7e]*\([\x21-\x7e]*\)(?=\s|$|[^_/a-zA-Z0-9\-])";
+pub const CLOSING_PARENTHESIS_HYPERLINK_PATTERN: &str = r"(?<![a-zA-Z0-9_+.\-])[a-zA-Z][a-zA-Z0-9+.\-]*://[\x21-\x27\x2a-\x7e]*\([\x21-\x7e]*\)(?=\s|$|[^_/a-zA-Z0-9\-])";
 pub const GENERIC_HYPERLINK_PATTERN: &str =
     r"(?<![a-zA-Z0-9_+.\-])[a-zA-Z][a-zA-Z0-9+.\-]*://[\x21-\x7e]+[_/a-zA-Z0-9\-]";
 
