@@ -52,7 +52,7 @@ Part of a trilogy: [Kaku](https://github.com/niasand/Kaku) (書く) writes code,
 | Split Pane Horizontal | `Cmd + Shift + D` |
 | Open Settings | `Cmd + ,` |
 | Open Lazygit | `Cmd + Shift + G` |
-| Toggle Pane Broadcast | `Cmd + Opt + I` |
+| Toggle Pane Broadcast | Window menu, or a binding in `kaku.lua` |
 | Clear Screen | `Cmd + K` |
 
 Full keybinding reference: [docs/keybindings.md](docs/keybindings.md)

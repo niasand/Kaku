@@ -2043,16 +2043,16 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
         },
         ToggleCurrentTabPanesInputBroadcast => CommandDef {
             brief: "Toggle Current Tab Panes".into(),
-            doc: "Toggle broadcasting terminal keyboard input to every visible pane in the current tab.".into(),
-            keys: vec![(Modifiers::SUPER.union(Modifiers::ALT), "i".into())],
+            doc: "Toggle broadcasting terminal keyboard input to every visible pane in the current tab. Bind this from kaku.lua if you want a shortcut.".into(),
+            keys: vec![],
             args: &[ArgType::ActiveWindow],
             menubar: &["Window"],
             icon: None,
         },
         ToggleAllPanesInputBroadcast => CommandDef {
             brief: "Toggle All Panes (All Tabs)".into(),
-            doc: "Toggle broadcasting terminal keyboard input to every visible pane in every tab in the current window.".into(),
-            keys: vec![(Modifiers::SUPER.union(Modifiers::SHIFT), "i".into())],
+            doc: "Toggle broadcasting terminal keyboard input to every visible pane in every tab in the current window. Bind this from kaku.lua if you want a shortcut.".into(),
+            keys: vec![],
             args: &[ArgType::ActiveWindow],
             menubar: &["Window"],
             icon: None,
@@ -2642,44 +2642,38 @@ mod tests {
     use window::{KeyCode, Modifiers};
 
     #[test]
-    fn toggle_current_tab_panes_input_broadcast_has_default_shortcut() {
+    fn toggle_current_tab_panes_input_broadcast_has_no_default_shortcut() {
         let cmd =
             derive_command_from_key_assignment(&KeyAssignment::ToggleCurrentTabPanesInputBroadcast)
                 .expect("command");
 
-        assert_eq!(
-            cmd.keys,
-            vec![(Modifiers::SUPER.union(Modifiers::ALT), "i".into())]
-        );
+        assert!(cmd.keys.is_empty());
     }
 
     #[test]
-    fn toggle_all_panes_input_broadcast_has_default_shortcut() {
+    fn toggle_all_panes_input_broadcast_has_no_default_shortcut() {
         let cmd = derive_command_from_key_assignment(&KeyAssignment::ToggleAllPanesInputBroadcast)
             .expect("command");
 
-        assert_eq!(
-            cmd.keys,
-            vec![(Modifiers::SUPER.union(Modifiers::SHIFT), "i".into())]
-        );
+        assert!(cmd.keys.is_empty());
     }
 
     #[test]
-    fn toggle_current_tab_panes_input_broadcast_is_in_default_assignments() {
+    fn toggle_current_tab_panes_input_broadcast_is_not_in_default_assignments() {
         let config = ConfigHandle::default_config();
 
         assert!(CommandDef::default_key_assignments(&config)
             .iter()
-            .any(|(_, _, action)| *action == KeyAssignment::ToggleCurrentTabPanesInputBroadcast));
+            .all(|(_, _, action)| *action != KeyAssignment::ToggleCurrentTabPanesInputBroadcast));
     }
 
     #[test]
-    fn toggle_all_panes_input_broadcast_is_in_default_assignments() {
+    fn toggle_all_panes_input_broadcast_is_not_in_default_assignments() {
         let config = ConfigHandle::default_config();
 
         assert!(CommandDef::default_key_assignments(&config)
             .iter()
-            .any(|(_, _, action)| *action == KeyAssignment::ToggleAllPanesInputBroadcast));
+            .all(|(_, _, action)| *action != KeyAssignment::ToggleAllPanesInputBroadcast));
     }
 
     #[cfg(target_os = "macos")]
