@@ -63,7 +63,7 @@ enum SavedPaneNode {
     Leaf(SavedPaneEntry),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 struct SavedPaneEntry {
     window_id: MuxWindowId,
     tab_id: TabId,
