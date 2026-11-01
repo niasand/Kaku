@@ -11,31 +11,48 @@ use promise::spawn::spawn;
 use serde::{Deserialize, Serialize};
 use smol::Timer;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use wezterm_term::TerminalSize;
 use wezterm_toast_notification::persistent_toast_notification;
 use window::WindowOps;
 
-const SNAPSHOT_VERSION: u32 = 2;
+const SNAPSHOT_VERSION: u32 = 3;
+const LEGACY_SNAPSHOT_VERSION: u32 = 2;
 const SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
 
-#[derive(Debug, Serialize, Deserialize)]
+/// On-disk session. One document holds every live window so a save from
+/// window B cannot replace the snapshot of window A.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+struct SavedSessionDocument {
+    version: u32,
+    windows: Vec<SavedWindowSnapshot>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 struct SavedWindowSnapshot {
+    active_tab_idx: usize,
+    window_title: String,
+    tabs: Vec<SavedTabSnapshot>,
+}
+
+/// Version 2 wrote a single window object to `last_window_session.json`.
+#[derive(Debug, Deserialize)]
+struct LegacySavedWindowSnapshot {
     version: u32,
     active_tab_idx: usize,
     window_title: String,
     tabs: Vec<SavedTabSnapshot>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 struct SavedTabSnapshot {
     title: String,
     pane_tree: SavedPaneNode,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 enum SavedPaneNode {
     Empty,
     Split {
@@ -61,15 +78,40 @@ struct SavedPaneEntry {
 }
 
 impl SavedPaneNode {
-    fn from_live(node: PaneNode, mux: &Mux) -> anyhow::Result<Self> {
-        match node {
-            PaneNode::Empty => Ok(Self::Empty),
-            PaneNode::Split { left, right, node } => Ok(Self::Split {
-                left: Box::new(Self::from_live(*left, mux)?),
-                right: Box::new(Self::from_live(*right, mux)?),
+    fn is_empty(&self) -> bool {
+        matches!(self, Self::Empty)
+    }
+
+    fn join_split(left: Self, right: Self, node: SplitDirectionAndSize) -> Self {
+        match (left.is_empty(), right.is_empty()) {
+            (true, true) => Self::Empty,
+            (true, false) => right,
+            (false, true) => left,
+            (false, false) => Self::Split {
+                left: Box::new(left),
+                right: Box::new(right),
                 node,
-            }),
-            PaneNode::Leaf(entry) => Ok(Self::Leaf(SavedPaneEntry::from_live(entry, mux)?)),
+            },
+        }
+    }
+
+    /// A missing pane or domain used to fail the whole window via `?`.
+    /// Skip that leaf and keep the rest of the tree.
+    fn from_live(node: PaneNode, mux: &Mux) -> Self {
+        match node {
+            PaneNode::Empty => Self::Empty,
+            PaneNode::Split { left, right, node } => {
+                let left = Self::from_live(*left, mux);
+                let right = Self::from_live(*right, mux);
+                Self::join_split(left, right, node)
+            }
+            PaneNode::Leaf(entry) => match SavedPaneEntry::from_live(entry, mux) {
+                Ok(saved) => Self::Leaf(saved),
+                Err(err) => {
+                    log::warn!("skipping pane while saving session: {err:#}");
+                    Self::Empty
+                }
+            },
         }
     }
 
@@ -153,6 +195,51 @@ fn snapshot_file() -> PathBuf {
     config_dir_file("last_window_session.json")
 }
 
+fn previous_snapshot_file() -> PathBuf {
+    config_dir_file("previous_window_session.json")
+}
+
+/// The live session file is rewritten as soon as a window exists, including a
+/// single-pane window. Copy it once per process before that rewrite so
+/// Restore Previous Window still opens the layout from the last run.
+fn preserve_previous_snapshot_once() {
+    static PRESERVED: OnceLock<()> = OnceLock::new();
+    PRESERVED.get_or_init(|| {
+        let current = snapshot_file();
+        if !current.exists() {
+            return;
+        }
+        let previous = previous_snapshot_file();
+        if let Some(parent) = previous.parent() {
+            if let Err(err) = config::create_user_owned_dirs(parent) {
+                log::warn!(
+                    "failed to create session dir while preserving previous snapshot: {err:#}"
+                );
+                return;
+            }
+        }
+        let tmp = previous.with_file_name(format!(
+            "{}.{}.tmp",
+            previous.file_stem().unwrap_or_default().to_string_lossy(),
+            std::process::id()
+        ));
+        let copied = std::fs::copy(&current, &tmp).and_then(|_| std::fs::rename(&tmp, &previous));
+        if let Err(err) = copied {
+            let _ = std::fs::remove_file(&tmp);
+            log::warn!(
+                "failed to preserve previous session snapshot {} -> {}: {err}",
+                current.display(),
+                previous.display()
+            );
+        }
+    });
+}
+
+fn session_write_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
 fn collect_leaf_entries(node: &SavedPaneNode, out: &mut Vec<SavedPaneEntry>) {
     match node {
         SavedPaneNode::Empty => {}
@@ -186,52 +273,49 @@ fn focused_window_id() -> Option<MuxWindowId> {
         })
 }
 
-fn build_snapshot_for_window(
-    window_id: MuxWindowId,
-) -> anyhow::Result<Option<SavedWindowSnapshot>> {
+fn build_snapshot_for_window(window_id: MuxWindowId) -> Option<SavedWindowSnapshot> {
     let mux = Mux::get();
-    let window = mux
-        .get_window(window_id)
-        .ok_or_else(|| anyhow!("window {window_id} not found"))?;
-
-    let tab_count = window.len();
-    let pane_count: usize = window
-        .iter()
-        .map(|tab| tab.iter_panes_ignoring_zoom().len())
-        .sum();
-
-    if tab_count <= 1 && pane_count <= 1 {
-        return Ok(None);
+    let window = mux.get_window(window_id)?;
+    if window.is_empty() {
+        return None;
     }
 
-    let tabs = window
-        .iter()
-        .map(|tab| {
-            Ok(SavedTabSnapshot {
-                title: tab.get_title(),
-                pane_tree: SavedPaneNode::from_live(tab.codec_pane_tree(), &mux)?,
-            })
-        })
-        .collect::<anyhow::Result<Vec<_>>>()?;
+    let selected = window.get_active_idx();
+    let mut active_tab_idx = 0;
+    let mut tabs = Vec::new();
+    for (idx, tab) in window.iter().enumerate() {
+        let pane_tree = SavedPaneNode::from_live(tab.codec_pane_tree(), &mux);
+        if pane_tree.is_empty() {
+            log::warn!("skipping tab in window {window_id}: no restorable panes");
+            continue;
+        }
+        if idx == selected {
+            active_tab_idx = tabs.len();
+        }
+        tabs.push(SavedTabSnapshot {
+            title: tab.get_title(),
+            pane_tree,
+        });
+    }
 
-    Ok(Some(SavedWindowSnapshot {
-        version: SNAPSHOT_VERSION,
-        active_tab_idx: window.get_active_idx(),
+    if tabs.is_empty() {
+        return None;
+    }
+
+    Some(SavedWindowSnapshot {
+        active_tab_idx,
         window_title: window.get_title().to_string(),
         tabs,
-    }))
+    })
 }
 
-fn write_snapshot_to_path(
-    file_name: &std::path::Path,
-    snapshot: &SavedWindowSnapshot,
-) -> anyhow::Result<()> {
+fn write_json_atomic(file_name: &Path, value: &impl Serialize) -> anyhow::Result<()> {
     if let Some(parent) = file_name.parent() {
         config::create_user_owned_dirs(parent)
             .with_context(|| format!("create snapshot dir {}", parent.display()))?;
     }
 
-    let encoded = serde_json::to_string_pretty(snapshot).context("encode window snapshot")?;
+    let encoded = serde_json::to_string_pretty(value).context("encode window snapshot")?;
     // Atomic write: a crash mid-write would otherwise leave a truncated JSON
     // file that fails to parse on the next launch. Write to a sibling temp
     // file and rename on top, which is atomic on POSIX.
@@ -251,16 +335,31 @@ fn write_snapshot_to_path(
     Ok(())
 }
 
-fn write_snapshot(snapshot: &SavedWindowSnapshot) -> anyhow::Result<()> {
-    write_snapshot_to_path(&snapshot_file(), snapshot)
+fn write_session(windows: &[SavedWindowSnapshot]) -> anyhow::Result<()> {
+    write_json_atomic(
+        &snapshot_file(),
+        &SavedSessionDocument {
+            version: SNAPSHOT_VERSION,
+            windows: windows.to_vec(),
+        },
+    )
 }
 
-pub fn save_window_snapshot(window_id: MuxWindowId) -> anyhow::Result<()> {
-    let Some(snapshot) = build_snapshot_for_window(window_id)? else {
-        return Ok(());
-    };
+pub fn save_window_snapshot(_window_id: MuxWindowId) -> anyhow::Result<()> {
+    let _guard = session_write_lock().lock();
+    preserve_previous_snapshot_once();
 
-    write_snapshot(&snapshot)
+    let mux = Mux::get();
+    let mut ids = mux.iter_windows();
+    ids.sort();
+    let mut windows = Vec::new();
+    for id in ids {
+        if let Some(snapshot) = build_snapshot_for_window(id) {
+            windows.push(snapshot);
+        }
+    }
+
+    write_session(&windows)
 }
 
 pub fn save_focused_window_snapshot() -> anyhow::Result<()> {
@@ -311,10 +410,20 @@ pub fn request_save_window_snapshot(window_id: MuxWindowId) {
 ///
 /// `Err` is reserved for unexpected I/O errors that the user should know
 /// about (e.g. permission denied).
-fn load_snapshot_from_path(
-    file_name: &std::path::Path,
-) -> anyhow::Result<Option<SavedWindowSnapshot>> {
-    let contents = match std::fs::read_to_string(&file_name) {
+fn usable_windows(windows: Vec<SavedWindowSnapshot>) -> Option<Vec<SavedWindowSnapshot>> {
+    let windows: Vec<_> = windows
+        .into_iter()
+        .filter(|window| !window.tabs.is_empty())
+        .collect();
+    if windows.is_empty() {
+        None
+    } else {
+        Some(windows)
+    }
+}
+
+fn load_windows_from_path(file_name: &Path) -> anyhow::Result<Option<Vec<SavedWindowSnapshot>>> {
+    let contents = match std::fs::read_to_string(file_name) {
         Ok(s) => s,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(err) => {
@@ -322,37 +431,50 @@ fn load_snapshot_from_path(
         }
     };
 
-    let snapshot: SavedWindowSnapshot = match serde_json::from_str(&contents) {
-        Ok(s) => s,
-        Err(err) => {
+    if let Ok(document) = serde_json::from_str::<SavedSessionDocument>(&contents) {
+        if document.version != SNAPSHOT_VERSION {
             log::warn!(
-                "ignoring corrupt window snapshot at {}: {err}",
-                file_name.display()
+                "ignoring window snapshot at {} with unsupported version {} (expected {})",
+                file_name.display(),
+                document.version,
+                SNAPSHOT_VERSION
             );
             return Ok(None);
         }
-    };
-
-    if snapshot.version != SNAPSHOT_VERSION {
-        log::warn!(
-            "ignoring window snapshot at {} with unsupported version {} (expected {})",
-            file_name.display(),
-            snapshot.version,
-            SNAPSHOT_VERSION
-        );
-        return Ok(None);
+        return Ok(usable_windows(document.windows));
     }
 
-    if snapshot.tabs.is_empty() {
-        log::debug!("snapshot {} has no tabs", file_name.display());
-        return Ok(None);
+    if let Ok(legacy) = serde_json::from_str::<LegacySavedWindowSnapshot>(&contents) {
+        if legacy.version != LEGACY_SNAPSHOT_VERSION {
+            log::warn!(
+                "ignoring window snapshot at {} with unsupported version {} (expected {})",
+                file_name.display(),
+                legacy.version,
+                SNAPSHOT_VERSION
+            );
+            return Ok(None);
+        }
+        return Ok(usable_windows(vec![SavedWindowSnapshot {
+            active_tab_idx: legacy.active_tab_idx,
+            window_title: legacy.window_title,
+            tabs: legacy.tabs,
+        }]));
     }
 
-    Ok(Some(snapshot))
+    log::warn!(
+        "ignoring corrupt window snapshot at {}",
+        file_name.display()
+    );
+    Ok(None)
 }
 
-fn load_snapshot() -> anyhow::Result<Option<SavedWindowSnapshot>> {
-    load_snapshot_from_path(&snapshot_file())
+fn load_snapshot() -> anyhow::Result<Option<Vec<SavedWindowSnapshot>>> {
+    // Seed `previous_window_session.json` from the last run before any save
+    // in this process rewrites `last_window_session.json`. Restore reads only
+    // the previous file, so opening a new window cannot duplicate the live
+    // session or erase the layout from the last run.
+    preserve_previous_snapshot_once();
+    load_windows_from_path(&previous_snapshot_file())
 }
 
 async fn spawn_panes_for_tab(
@@ -407,7 +529,6 @@ async fn get_existing_terminal_size() -> Option<TerminalSize> {
 async fn restore_snapshot(snapshot: SavedWindowSnapshot) -> anyhow::Result<()> {
     let mux = Mux::get();
     let SavedWindowSnapshot {
-        version: _,
         active_tab_idx,
         window_title,
         tabs,
@@ -476,9 +597,27 @@ pub fn restore_previous_window_from_menu() {
     spawn(async move {
         let result = async {
             match load_snapshot()? {
-                Some(snapshot) => {
-                    restore_snapshot(snapshot).await?;
-                    Ok::<bool, anyhow::Error>(true)
+                Some(windows) => {
+                    let mut restored = 0usize;
+                    let mut first_err = None;
+                    for snapshot in windows {
+                        match restore_snapshot(snapshot).await {
+                            Ok(()) => restored += 1,
+                            Err(err) => {
+                                log::warn!("failed to restore a window from session: {err:#}");
+                                if first_err.is_none() {
+                                    first_err = Some(err);
+                                }
+                            }
+                        }
+                    }
+                    if restored > 0 {
+                        Ok::<bool, anyhow::Error>(true)
+                    } else if let Some(err) = first_err {
+                        Err(err)
+                    } else {
+                        Ok(false)
+                    }
                 }
                 None => Ok(false),
             }
@@ -506,30 +645,65 @@ pub fn restore_previous_window_from_menu() {
 mod tests {
     use super::*;
 
-    fn sample_snapshot(version: u32) -> SavedWindowSnapshot {
+    fn sample_window(title: &str) -> SavedWindowSnapshot {
         SavedWindowSnapshot {
-            version,
             active_tab_idx: 0,
-            window_title: "Test Window".to_string(),
+            window_title: title.to_string(),
             tabs: vec![SavedTabSnapshot {
-                title: "Test Tab".to_string(),
+                title: format!("{title} tab"),
                 pane_tree: SavedPaneNode::Empty,
             }],
         }
     }
 
+    fn sample_document(windows: Vec<SavedWindowSnapshot>) -> SavedSessionDocument {
+        SavedSessionDocument {
+            version: SNAPSHOT_VERSION,
+            windows,
+        }
+    }
+
     #[test]
-    fn snapshot_round_trips_via_atomic_write() {
+    fn snapshot_round_trips_every_window() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("last_window_session.json");
-        write_snapshot_to_path(&path, &sample_snapshot(SNAPSHOT_VERSION)).unwrap();
+        let document = sample_document(vec![sample_window("One"), sample_window("Two")]);
+        write_json_atomic(&path, &document).unwrap();
 
-        let loaded = load_snapshot_from_path(&path).unwrap().expect("snapshot");
-        assert_eq!(loaded.version, SNAPSHOT_VERSION);
-        assert_eq!(loaded.active_tab_idx, 0);
-        assert_eq!(loaded.window_title, "Test Window");
-        assert_eq!(loaded.tabs.len(), 1);
-        assert_eq!(loaded.tabs[0].title, "Test Tab");
+        let loaded = load_windows_from_path(&path).unwrap().expect("snapshot");
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].window_title, "One");
+        assert_eq!(loaded[1].window_title, "Two");
+        assert_eq!(loaded[0].tabs[0].title, "One tab");
+        assert_eq!(loaded[1].active_tab_idx, 0);
+    }
+
+    #[test]
+    fn single_pane_window_is_kept_in_the_document() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("last_window_session.json");
+        write_json_atomic(&path, &sample_document(vec![sample_window("Solo")])).unwrap();
+
+        let loaded = load_windows_from_path(&path).unwrap().expect("snapshot");
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].tabs.len(), 1);
+    }
+
+    #[test]
+    fn legacy_v2_snapshot_loads_as_one_window() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("last_window_session.json");
+        std::fs::write(
+            &path,
+            r#"{"version":2,"active_tab_idx":1,"window_title":"Old","tabs":[{"title":"T","pane_tree":"Empty"}]}"#,
+        )
+        .unwrap();
+
+        let loaded = load_windows_from_path(&path).unwrap().expect("legacy");
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].window_title, "Old");
+        assert_eq!(loaded[0].active_tab_idx, 1);
+        assert_eq!(loaded[0].tabs[0].title, "T");
     }
 
     #[test]
@@ -538,19 +712,59 @@ mod tests {
         let path = dir.path().join("last_window_session.json");
         std::fs::write(&path, "{not json").unwrap();
 
-        assert!(load_snapshot_from_path(&path).unwrap().is_none());
+        assert!(load_windows_from_path(&path).unwrap().is_none());
     }
 
     #[test]
     fn unsupported_snapshot_version_is_ignored() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("last_window_session.json");
-        std::fs::write(
-            &path,
-            serde_json::to_string(&sample_snapshot(SNAPSHOT_VERSION + 1)).unwrap(),
-        )
-        .unwrap();
+        let mut document = sample_document(vec![sample_window("Future")]);
+        document.version = SNAPSHOT_VERSION + 1;
+        std::fs::write(&path, serde_json::to_string(&document).unwrap()).unwrap();
 
-        assert!(load_snapshot_from_path(&path).unwrap().is_none());
+        assert!(load_windows_from_path(&path).unwrap().is_none());
+    }
+
+    #[test]
+    fn empty_session_is_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("last_window_session.json");
+        write_json_atomic(&path, &sample_document(vec![])).unwrap();
+
+        assert!(load_windows_from_path(&path).unwrap().is_none());
+    }
+
+    #[test]
+    fn skipped_side_of_a_split_keeps_the_other_pane() {
+        let node = SplitDirectionAndSize {
+            direction: mux::tab::SplitDirection::Vertical,
+            first: TerminalSize::default(),
+            second: TerminalSize::default(),
+        };
+        let leaf = SavedPaneNode::Leaf(SavedPaneEntry {
+            window_id: 1,
+            tab_id: TabId::new(2),
+            pane_id: PaneId::new(3),
+            title: "kept".to_string(),
+            size: TerminalSize::default(),
+            working_dir: None,
+            domain_name: "local".to_string(),
+            is_active_pane: true,
+            is_zoomed_pane: false,
+            workspace: "default".to_string(),
+        });
+
+        match SavedPaneNode::join_split(SavedPaneNode::Empty, leaf.clone(), node) {
+            SavedPaneNode::Leaf(entry) => assert_eq!(entry.title, "kept"),
+            other => panic!("expected the surviving pane, got {other:?}"),
+        }
+        assert!(
+            SavedPaneNode::join_split(SavedPaneNode::Empty, SavedPaneNode::Empty, node).is_empty()
+        );
+        assert!(matches!(
+            SavedPaneNode::join_split(leaf.clone(), leaf, node),
+            SavedPaneNode::Split { .. }
+        ));
     }
 }
