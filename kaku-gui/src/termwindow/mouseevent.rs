@@ -1419,6 +1419,35 @@ impl super::TermWindow {
             MouseCursor::Text
         }));
 
+        // Cmd+click opens the link under the pointer. The bundled binding is
+        // Left-Up + CMD with mouse_reporting left at its default (false), so
+        // a TUI that has grabbed the mouse (Codex, vim, less -R, …) never
+        // matches it and the click is forwarded into the app. Swallow the
+        // press and the release here, and open on release, so the app does
+        // not also see the click. Cmd+click on a cell with no link still
+        // goes to the application. Option+click stays the prompt cursor
+        // move, and it only runs when the shell owns the line.
+        let command_click_on_link = allow_action
+            && self.current_highlight.is_some()
+            && event.modifiers.contains(window::Modifiers::SUPER)
+            && matches!(
+                event.kind,
+                WMEK::Press(MousePress::Left) | WMEK::Release(MousePress::Left)
+            )
+            && self
+                .last_mouse_click
+                .as_ref()
+                .map(|click| click.streak)
+                .unwrap_or(1)
+                == 1;
+        if command_click_on_link {
+            if matches!(event.kind, WMEK::Release(MousePress::Left)) {
+                self.do_open_link_at_mouse_cursor(&pane);
+            }
+            context.invalidate();
+            return;
+        }
+
         let event_trigger_type = match &event.kind {
             WMEK::Press(press) => {
                 let press = mouse_press_to_tmb(press);

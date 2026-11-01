@@ -134,6 +134,7 @@ jobs:
             assets/shell-integration/tests/kiro_autosuggest_compat_smoke.sh
             assets/shell-integration/tests/install_cli_tools_mise_smoke.sh
             assets/shell-integration/tests/tmux_integration_smoke.sh
+            assets/shell-integration/tests/zshrc_symlink_smoke.sh
           )
           for test_script in "${tests[@]}"; do
             echo "::group::Running ${test_script}"

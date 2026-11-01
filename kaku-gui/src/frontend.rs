@@ -435,11 +435,19 @@ impl GuiFrontEnd {
                     // Handled via TermWindowNotif; NOP it here.
                 }
                 MuxNotification::Alert {
+                    pane_id,
+                    alert: Alert::CurrentWorkingDirectoryChanged,
+                } => {
+                    let mux = Mux::get();
+                    if let Some((_, window_id, _)) = mux.resolve_pane_id(pane_id) {
+                        crate::session_restore::request_save_window_snapshot(window_id);
+                    }
+                }
+                MuxNotification::Alert {
                     pane_id: _,
                     alert:
                         Alert::OutputSinceFocusLost
                         | Alert::PaletteChanged
-                        | Alert::CurrentWorkingDirectoryChanged
                         | Alert::WindowTitleChanged(_)
                         | Alert::TabTitleChanged(_)
                         | Alert::IconTitleChanged(_)

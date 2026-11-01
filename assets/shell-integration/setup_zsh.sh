@@ -85,6 +85,33 @@ backup_zshrc_once() {
 	fi
 }
 
+# `mv` onto a symlink replaces the link with a regular file. Follow the
+# chain and replace the file it points at so `~/.zshrc -> ~/dotfiles/zshrc`
+# stays a symlink.
+resolve_write_path() {
+	local path="$1"
+	local guard=0
+	local dir link
+	while [[ -L "$path" && "$guard" -lt 16 ]]; do
+		dir="$(dirname "$path")"
+		link="$(readlink "$path")"
+		if [[ "$link" == /* ]]; then
+			path="$link"
+		else
+			path="$(cd "$dir" && cd "$(dirname "$link")" && pwd)/$(basename "$link")"
+		fi
+		guard=$((guard + 1))
+	done
+	printf '%s\n' "$path"
+}
+
+replace_zshrc_file() {
+	local tmp_file="$1"
+	local target
+	target="$(resolve_write_path "$ZSHRC")"
+	mv "$tmp_file" "$target"
+}
+
 backup_tmuxrc_once() {
 	if [[ -f "$TMUXRC" ]] && [[ "$TMUXRC_BACKED_UP" -eq 0 ]]; then
 		cp "$TMUXRC" "$TMUXRC$BACKUP_SUFFIX"
@@ -1217,7 +1244,7 @@ cleanup_legacy_inline_block() {
 
 	if ! cmp -s "$ZSHRC" "$tmp_file"; then
 		backup_zshrc_once
-		mv "$tmp_file" "$ZSHRC"
+		replace_zshrc_file "$tmp_file"
 		if [[ "$removed_block" == "1" ]]; then
 			echo -e "  ${GREEN}✓${NC} ${BOLD}Migrate${NC}     Removed legacy inline Kaku block from .zshrc"
 		fi
@@ -1280,7 +1307,7 @@ END {
 ' "$ZSHRC" >"$tmp_file"; then
 		if ! cmp -s "$ZSHRC" "$tmp_file"; then
 			backup_zshrc_once
-			mv "$tmp_file" "$ZSHRC"
+			replace_zshrc_file "$tmp_file"
 			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Kaku PATH line in .zshrc"
 		else
 			rm -f "$tmp_file"
@@ -1290,7 +1317,7 @@ END {
 		if [[ "$awk_status" == "2" ]]; then
 			if ! cmp -s "$ZSHRC" "$tmp_file"; then
 				backup_zshrc_once
-				mv "$tmp_file" "$ZSHRC"
+				replace_zshrc_file "$tmp_file"
 				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Kaku PATH line(s) from .zshrc"
 			else
 				rm -f "$tmp_file"
@@ -1348,7 +1375,7 @@ END {
 ' "$ZSHRC" >"$tmp_file"; then
 		if ! cmp -s "$ZSHRC" "$tmp_file"; then
 			backup_zshrc_once
-			mv "$tmp_file" "$ZSHRC"
+			replace_zshrc_file "$tmp_file"
 			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Kaku source line in .zshrc"
 		else
 			rm -f "$tmp_file"
@@ -1359,7 +1386,7 @@ END {
 		if [[ "$awk_status" == "2" ]]; then
 			if ! cmp -s "$ZSHRC" "$tmp_file"; then
 				backup_zshrc_once
-				mv "$tmp_file" "$ZSHRC"
+				replace_zshrc_file "$tmp_file"
 				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Kaku source line(s) from .zshrc"
 			else
 				rm -f "$tmp_file"
