@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">时间水印相机</string>
+    <string name="library">录像库</string>
+    <string name="presets">字幕文案</string>
+    <string name="switch_camera">切换摄像头</string>
+    <string name="mic_on">关闭录音</string>
+    <string name="mic_off">打开录音</string>
+    <string name="start_record">开始录像</string>
+    <string name="stop_record">停止录像</string>
+    <string name="back">返回</string>
+    <string name="grant">授予权限</string>
+    <string name="open_settings">打开设置</string>
+    <string name="permission_title">需要相机才能拍摄</string>
+    <string name="permission_body">时间水印会画进每一帧。麦克风用于给视频录音，可以稍后在画面上单独关闭。</string>
+    <string name="preset_help">这些是固定字幕。拍摄或回看时点一下，就会按当时的时间写进时间线。拍摄中再点一次同一条文案，这条字幕结束。</string>
+    <string name="preset_placeholder">输入固定字幕</string>
+    <string name="add">添加</string>
+    <string name="save">保存</string>
+    <string name="delete">删除</string>
+    <string name="move_up">上移</string>
+    <string name="move_down">下移</string>
+    <string name="edit">编辑</string>
+    <string name="cancel">取消</string>
+    <string name="empty_library">还没有录像</string>
+    <string name="empty_presets">还没有文案。先加一条，拍摄时就能点。</string>
+    <string name="playback_hint">点选文案，在播放头位置加入 3 秒字幕</string>
+    <string name="record_hint">点选文案，从这一刻写进时间线</string>
+    <string name="record_hint_idle">开拍前选中的文案，会从 0 秒开始</string>
+    <string name="legend">黄色字幕已经写进画面。蓝色只在时间线和 SRT 里，删除时间线不会抹掉画面上的字。</string>
+    <string name="export_srt">导出 SRT</string>
+    <string name="share_video">分享视频</string>
+    <string name="play">播放</string>
+    <string name="pause">暂停</string>
+    <string name="no_cues">时间线还没有字幕</string>
+    <string name="preset_invalid">请输入 1 到 40 个字，且不要和已有文案重复</string>
+    <string name="audio_missing">没有麦克风权限，这段视频不会有声音</string>
+    <string name="burned">已写入画面</string>
+    <string name="timeline_only">仅时间线</string>
+    <string name="delete_video_title">删除这段录像？</string>
+    <string name="delete_video_body">视频文件和时间线会一起删除。</string>
+    <string name="cue_added">已写入时间线 %1$s</string>
+    <string name="cue_closed">这条字幕已结束</string>
+</resources>

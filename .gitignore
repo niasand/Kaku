@@ -104,3 +104,13 @@ FEATURE_INVENTORY.md
 # Local-only notes — internal/bug memory, never for public repo
 /issue.md
 /wiki/
+
+# Android timestamp camera build outputs
+/timestamp-camera/.gradle/
+/timestamp-camera/build/
+/timestamp-camera/app/build/
+/timestamp-camera/core/build/
+/timestamp-camera/local.properties
+/timestamp-camera/.idea/
+/timestamp-camera/**/*.iml
+/timestamp-camera/.kotlin/
