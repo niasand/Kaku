@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#14201C</color>
+    <style name="Theme.Shiyin" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">#0E1110</item>
+        <item name="android:windowBackground">#0E1110</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
